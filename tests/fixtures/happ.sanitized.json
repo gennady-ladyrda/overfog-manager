@@ -1,0 +1,33 @@
+{
+  "remarks": " Германия Premium",
+  "outbounds": [
+    {
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "example.invalid",
+            "port": 443,
+            "users": [
+              {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "flow": "xtls-rprx-vision",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "example.invalid",
+          "publicKey": "SANITIZED_PUBLIC_KEY",
+          "shortId": "00000000",
+          "fingerprint": "qq"
+        }
+      }
+    }
+  ]
+}

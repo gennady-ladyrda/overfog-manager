@@ -1,0 +1,524 @@
+#!/bin/sh
+
+set -u
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+LIB_DIR="${OVERFOG_LIB_DIR:-$SCRIPT_DIR/lib}"
+[ -d "$LIB_DIR" ] || LIB_DIR="${OVERFOG_LIB_DIR:-$SCRIPT_DIR/overfog-manager-lib}"
+
+# shellcheck source=lib/paths.sh
+. "$LIB_DIR/paths.sh"
+# shellcheck source=lib/profiles.sh
+. "$LIB_DIR/profiles.sh"
+# shellcheck source=lib/config.sh
+. "$LIB_DIR/config.sh"
+# shellcheck source=lib/transaction.sh
+. "$LIB_DIR/transaction.sh"
+# shellcheck source=lib/checks.sh
+. "$LIB_DIR/checks.sh"
+# shellcheck source=lib/service.sh
+. "$LIB_DIR/service.sh"
+# shellcheck source=lib/import.sh
+. "$LIB_DIR/import.sh"
+
+die() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+cmd_status() {
+    require_files
+
+    ACTIVE="$(active_profile)"
+
+    echo "Overfog status"
+    echo "=============="
+    echo "Active profile : $ACTIVE"
+
+    if check_singbox_process; then
+        echo "sing-box       : RUNNING"
+    else
+        echo "sing-box       : STOPPED"
+    fi
+
+    if check_tun_interface; then
+        echo "tun0           : UP"
+    else
+        echo "tun0           : DOWN"
+    fi
+
+    echo
+    echo "Current outbound"
+    echo "----------------"
+
+    jq -r '
+      .outbounds[]
+      | select(.tag == "overfog")
+      | "Server          : \(.server)",
+        "Port            : \(.server_port)",
+        "Flow            : \(.flow // "-")",
+        "SNI             : \(.tls.server_name // "-")",
+        "Fingerprint     : \(.tls.utls.fingerprint // "-")",
+        "UUID            : \(if .uuid then "SET" else "MISSING" end)",
+        "Reality key     : \(if .tls.reality.public_key then "SET" else "MISSING" end)",
+        "Reality shortId : \(if .tls.reality.short_id then "SET" else "MISSING" end)"
+    ' "$CONFIG"
+}
+
+cmd_list() {
+    mkdir -p "$PROFILE_DIR"
+
+    ACTIVE="$(active_profile)"
+
+    printf "%-8s %-18s %-8s %-35s %s\n" \
+        "ACTIVE" "NAME" "COUNTRY" "SERVER" "PORT"
+
+    found=0
+
+    for file in "$PROFILE_DIR"/*.json; do
+        [ -f "$file" ] || continue
+        found=1
+
+        line="$(profile_summary "$file")" || {
+            echo "WARNING: invalid profile: $file" >&2
+            continue
+        }
+
+        name="$(printf '%s\n' "$line" | cut -f1)"
+        country="$(printf '%s\n' "$line" | cut -f2)"
+        server="$(printf '%s\n' "$line" | cut -f3)"
+        port="$(printf '%s\n' "$line" | cut -f4)"
+
+        marker=""
+        [ "$name" = "$ACTIVE" ] && marker="*"
+
+        printf "%-8s %-18s %-8s %-35s %s\n" \
+            "$marker" "$name" "$country" "$server" "$port"
+    done
+
+    [ "$found" -eq 1 ] || echo "No profiles found."
+}
+
+cmd_profile_create() {
+    require_files
+
+    NAME="${1:-}"
+    COUNTRY="${2:-}"
+
+    [ -n "$NAME" ] ||
+        die "Usage: overfogctl profile-create NAME [COUNTRY]"
+
+    valid_profile_name "$NAME" ||
+        die "Invalid profile name"
+
+    mkdir -p "$PROFILE_DIR"
+    chmod 700 "$PROFILE_DIR"
+
+    TARGET="$PROFILE_DIR/$NAME.json"
+
+    [ ! -e "$TARGET" ] ||
+        die "Profile already exists: $NAME"
+
+    TMP="${TMPDIR:-/tmp}/overfog-profile.$$"
+
+    jq -e \
+        --arg name "$NAME" \
+        --arg country "$COUNTRY" '
+        ([.outbounds[] | select(.tag == "overfog")] | length) as $count
+        | if $count == 1 then
+            ([.outbounds[] | select(.tag == "overfog")][0] | {
+              name: $name,
+              country: $country,
+              outbound: .
+            })
+          else
+            error("expected exactly one overfog outbound")
+          end
+    ' "$CONFIG" > "$TMP" || {
+        rm -f "$TMP"
+        die "Cannot extract overfog outbound"
+    }
+
+    jq -e '
+        .outbound.type == "vless"
+        and (.outbound.server | type == "string")
+        and (.outbound.server_port | type == "number")
+        and (.outbound.uuid | type == "string")
+        and (.outbound.tls.reality.public_key | type == "string")
+        and (.outbound.tls.reality.short_id | type == "string")
+    ' "$TMP" >/dev/null || {
+        rm -f "$TMP"
+        die "Extracted outbound is incomplete"
+    }
+
+    mv "$TMP" "$TARGET"
+    chmod 600 "$TARGET"
+
+    echo "Profile created: $NAME"
+    echo "File: $TARGET"
+}
+
+cmd_test() {
+    require_files
+
+    NAME="${1:-}"
+    [ -n "$NAME" ] ||
+        die "Usage: overfogctl test PROFILE"
+
+    PROFILE="$PROFILE_DIR/$NAME.json"
+    [ -r "$PROFILE" ] ||
+        die "Profile not found: $NAME"
+
+    # Проверяем структуру профиля.
+    validate_profile "$PROFILE" ||
+        die "Invalid or incomplete profile: $NAME"
+
+    TMP="${TMPDIR:-/tmp}/overfog-test-$$.json"
+
+    # Берём весь рабочий config.json и заменяем ТОЛЬКО outbound с tag=overfog.
+    generate_candidate "$CONFIG" "$PROFILE" "$TMP" || {
+        rm -f "$TMP"
+        die "Cannot generate candidate configuration with exactly one overfog outbound"
+    }
+
+    echo "Testing profile: $NAME"
+
+    jq -r '
+        .outbounds[]
+        | select(.tag == "overfog")
+        | "Server      : \(.server)",
+          "Port        : \(.server_port)",
+          "Flow        : \(.flow // "-")",
+          "SNI         : \(.tls.server_name // "-")",
+          "Fingerprint : \(.tls.utls.fingerprint // "-")"
+    ' "$TMP"
+
+    echo
+    echo "Running sing-box check..."
+
+    if check_singbox_config "$TMP"; then
+        echo
+        echo "RESULT: OK"
+        echo "Profile is syntactically valid."
+        RC=0
+    else
+        echo
+        echo "RESULT: FAILED"
+        RC=1
+    fi
+
+    rm -f "$TMP"
+    return "$RC"
+}
+
+cmd_switch() {
+    require_files
+
+    NAME="${1:-}"
+    [ -n "$NAME" ] ||
+        die "Usage: overfogctl switch PROFILE"
+
+    PROFILE="$PROFILE_DIR/$NAME.json"
+    [ -r "$PROFILE" ] ||
+        die "Profile not found: $NAME"
+
+    validate_profile "$PROFILE" ||
+        die "Invalid or incomplete profile: $NAME"
+
+    TMP="${TMPDIR:-/tmp}/overfog-switch-$$.json"
+    BACKUP_ID="$(date +%Y%m%d-%H%M%S)-$$"
+    BACKUP_CONFIG="$BACKUP_DIR/$BACKUP_ID.config.json"
+    BACKUP_ACTIVE="$BACKUP_DIR/$BACKUP_ID.active-profile"
+
+    cleanup_switch() {
+        rm -f "$TMP"
+    }
+
+    trap cleanup_switch 0 1 2 15
+
+    generate_candidate "$CONFIG" "$PROFILE" "$TMP" ||
+        die "Cannot generate candidate configuration"
+    check_singbox_config "$TMP" >/dev/null 2>&1 ||
+        die "Candidate configuration failed sing-box check"
+    backup_state "$CONFIG" "$ACTIVE_FILE" "$BACKUP_DIR" "$BACKUP_ID" ||
+        die "Cannot create backup"
+
+    install_candidate_atomic "$TMP" "$CONFIG" ||
+        die "Cannot install candidate configuration"
+
+    restart_singbox || {
+        restore_backup "$BACKUP_CONFIG" "$BACKUP_ACTIVE" "$CONFIG" "$ACTIVE_FILE" ||
+            die "Restart failed and automatic restore failed"
+        restart_singbox >/dev/null 2>&1 || true
+        die "Restart failed; previous configuration was restored"
+    }
+
+    if ! wait_for_full_runtime 15 1; then
+        restore_backup "$BACKUP_CONFIG" "$BACKUP_ACTIVE" "$CONFIG" "$ACTIVE_FILE" ||
+            die "Switch failed and automatic restore failed"
+        restart_singbox >/dev/null 2>&1 ||
+            die "Switch failed; configuration restored but restart failed"
+        wait_for_basic_runtime 15 1 ||
+            die "Switch failed; previous configuration could not be verified"
+        die "Switch failed; previous configuration was restored"
+    fi
+
+    write_active_atomic "$NAME" "$ACTIVE_FILE" || {
+        restore_backup "$BACKUP_CONFIG" "$BACKUP_ACTIVE" "$CONFIG" "$ACTIVE_FILE" || true
+        restart_singbox >/dev/null 2>&1 || true
+        die "Cannot update active profile; previous configuration was restored"
+    }
+
+    trap - 0 1 2 15
+    cleanup_switch
+    echo "Profile switched: $NAME"
+    echo "Backup: $BACKUP_CONFIG"
+}
+
+cmd_rollback() {
+    require_files
+
+    LATEST_CONFIG="$(find_latest_backup "$BACKUP_DIR")" ||
+        die "No managed backup found"
+    BACKUP_ID="$(basename "$LATEST_CONFIG" .config.json)"
+    BACKUP_ACTIVE="$BACKUP_DIR/$BACKUP_ID.active-profile"
+
+    CURRENT_ID="$(date +%Y%m%d-%H%M%S)-$$-before-rollback"
+    backup_state "$CONFIG" "$ACTIVE_FILE" "$BACKUP_DIR" "$CURRENT_ID" ||
+        die "Cannot backup current state before rollback"
+
+    restore_backup "$LATEST_CONFIG" "$BACKUP_ACTIVE" "$CONFIG" "$ACTIVE_FILE" ||
+        die "Cannot restore backup: $BACKUP_ID"
+
+    restart_singbox ||
+        die "Rollback restored files but restart failed"
+    wait_for_full_runtime 15 1 ||
+        die "Rollback restored files but runtime verification failed"
+
+    echo "Rollback complete"
+    echo "Restored backup: $BACKUP_ID"
+}
+
+cmd_import() {
+    require_files
+
+    INPUT="${1:-}"
+    COUNTRY=""
+    shift || true
+
+    [ -n "$INPUT" ] ||
+        die "Usage: overfogctl import FILE [--country COUNTRY]"
+    [ -r "$INPUT" ] ||
+        die "Cannot read import file: $INPUT"
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --country)
+                [ "$#" -ge 2 ] || die "Missing value for --country"
+                COUNTRY="$2"
+                shift 2
+                ;;
+            *)
+                die "Unknown import option: $1"
+                ;;
+        esac
+    done
+
+    NAME="$(derive_happ_profile_name "$INPUT")" ||
+        die "Cannot derive profile name from remarks"
+    [ -n "$NAME" ] ||
+        die "Import file has no usable remarks field"
+    valid_profile_name "$NAME" ||
+        die "Import remarks produced an unsafe profile name"
+
+    mkdir -p "$PROFILE_DIR"
+    chmod 700 "$PROFILE_DIR"
+    TARGET="$PROFILE_DIR/$NAME.json"
+    [ ! -e "$TARGET" ] ||
+        die "Profile already exists: $NAME"
+
+    TMP="${TMPDIR:-/tmp}/overfog-import-$$.json"
+    import_happ_profile "$INPUT" "$NAME" "$COUNTRY" "$TMP" || {
+        rm -f "$TMP"
+        die "Invalid or unsupported HAPP/Xray VLESS+REALITY file"
+    }
+    validate_profile "$TMP" || {
+        rm -f "$TMP"
+        die "Imported profile is incomplete"
+    }
+
+    mv "$TMP" "$TARGET" || {
+        rm -f "$TMP"
+        die "Cannot store imported profile"
+    }
+    chmod 600 "$TARGET"
+    echo "Profile imported: $NAME"
+    echo "File: $TARGET"
+}
+
+doctor_result() {
+    label="$1"
+    shift
+    if "$@" >/dev/null 2>&1; then
+        printf '%-28s: OK\n' "$label"
+    else
+        printf '%-28s: FAILED\n' "$label"
+    fi
+}
+
+doctor_bool() {
+    if "$@" >/dev/null 2>&1; then
+        printf 'true\n'
+    else
+        printf 'false\n'
+    fi
+}
+
+active_profile_matches_config() {
+    active="$1"
+    profile="$PROFILE_DIR/$active.json"
+
+    [ -r "$profile" ] || return 1
+    jq -e --slurpfile profile "$profile" '
+        ([.outbounds[] | select(.tag == "overfog")] | length) == 1
+        and ([.outbounds[] | select(.tag == "overfog")][0]
+             == $profile[0].outbound)
+    ' "$CONFIG" >/dev/null
+}
+
+cmd_doctor() {
+    require_files
+
+    if [ "${1:-}" = "--json" ]; then
+        CONFIG_OK="$(doctor_bool check_singbox_config "$CONFIG")"
+        PROCESS_OK="$(doctor_bool check_singbox_process)"
+        TUN_OK="$(doctor_bool check_tun_interface)"
+        LOG_OK="$(doctor_bool check_singbox_log_clean)"
+        CACHE_OK="$(doctor_bool test -r "${OVERFOG_CACHE_FILE:-/etc/sing-box/cache.db}")"
+        CONNECTIVITY_OK="$(doctor_bool check_connectivity)"
+        EXIT_IP="$(get_exit_ip 2>/dev/null || true)"
+        EXIT_IP_OK="$(printf '%s\n' "$EXIT_IP" | awk -F. 'NF == 4 && $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ && $1 <= 255 && $2 <= 255 && $3 <= 255 && $4 <= 255 {print "true"; next} {print "false"}')"
+        FIREWALL_ZONE_OK="$(doctor_bool check_firewall_singbox)"
+        FIREWALL_FORWARD_OK="$(doctor_bool check_firewall_forwarding)"
+        ACTIVE="$(active_profile)"
+        ACTIVE_OK=false
+        MATCH_OK=false
+        if valid_profile_name "$ACTIVE" && [ -r "$PROFILE_DIR/$ACTIVE.json" ]; then
+            ACTIVE_OK=true
+            if active_profile_matches_config "$ACTIVE" >/dev/null 2>&1; then
+                MATCH_OK=true
+            fi
+        fi
+        jq -n \
+            --arg active "$ACTIVE" \
+            --argjson config_valid "$CONFIG_OK" \
+            --argjson process_running "$PROCESS_OK" \
+            --argjson tun0 "$TUN_OK" \
+            --argjson log_clean "$LOG_OK" \
+            --argjson cache_present "$CACHE_OK" \
+            --argjson active_profile_exists "$ACTIVE_OK" \
+            --argjson active_config_match "$MATCH_OK" \
+            --argjson connectivity "$CONNECTIVITY_OK" \
+            --arg exit_ip "$EXIT_IP" \
+            --argjson exit_ip_valid "$EXIT_IP_OK" \
+            --argjson firewall_zone "$FIREWALL_ZONE_OK" \
+            --argjson firewall_forwarding "$FIREWALL_FORWARD_OK" \
+            '{
+              config_valid: $config_valid,
+              process_running: $process_running,
+              tun0: $tun0,
+              log_clean: $log_clean,
+              log_check: "informational_historical_entries_do_not_block_switch",
+              cache_present: $cache_present,
+              active_profile: $active,
+              active_profile_exists: $active_profile_exists,
+              active_config_match: $active_config_match,
+              connectivity: $connectivity,
+              firewall: {
+                zone_singbox_tun0: $firewall_zone,
+                forwarding_lan_singbox: $firewall_forwarding
+              },
+              exit_ip: {value: $exit_ip, valid_ipv4: $exit_ip_valid}
+            }'
+        return 0
+    fi
+
+    echo "Overfog doctor"
+    echo "=============="
+    doctor_result "sing-box config" check_singbox_config "$CONFIG"
+    doctor_result "sing-box process" check_singbox_process
+    doctor_result "tun0" check_tun_interface
+    if check_singbox_log_clean >/dev/null 2>&1; then
+        printf '%-28s: OK (informational)\n' "sing-box log"
+    else
+        printf '%-28s: WARN (historical/unclassified)\n' "sing-box log"
+    fi
+    doctor_result "cache file" test -r "${OVERFOG_CACHE_FILE:-/etc/sing-box/cache.db}"
+
+    ACTIVE="$(active_profile)"
+    if valid_profile_name "$ACTIVE" && [ -r "$PROFILE_DIR/$ACTIVE.json" ]; then
+        printf '%-28s: OK (%s)\n' "active profile" "$ACTIVE"
+        doctor_result "active/config match" active_profile_matches_config "$ACTIVE"
+    else
+        printf '%-28s: FAILED\n' "active profile"
+    fi
+
+    doctor_result "external connectivity" check_connectivity
+    doctor_result "exit IP format" check_exit_ip
+    doctor_result "firewall singbox zone" check_firewall_singbox
+    doctor_result "firewall lan->singbox" check_firewall_forwarding
+}
+
+usage() {
+    cat <<EOF2
+Usage:
+  overfogctl status
+  overfogctl list
+  overfogctl profile-create NAME [COUNTRY]
+  overfogctl test PROFILE
+  overfogctl switch PROFILE
+  overfogctl rollback
+  overfogctl doctor [--json]
+  overfogctl import FILE [--country COUNTRY]
+EOF2
+}
+
+COMMAND="${1:-}"
+
+case "$COMMAND" in
+    status)
+        cmd_status
+        ;;
+    list)
+        cmd_list
+        ;;
+    profile-create)
+        shift
+        cmd_profile_create "$@"
+        ;;
+    help|-h|--help|"")
+        usage
+        ;;
+    test)
+        shift
+        cmd_test "$@"
+        ;;
+    switch)
+        shift
+        cmd_switch "$@"
+        ;;
+    rollback)
+        cmd_rollback
+        ;;
+    doctor)
+        shift
+        cmd_doctor "$@"
+        ;;
+    import)
+        shift
+        cmd_import "$@"
+        ;;
+    *)
+        die "Unknown command: $COMMAND"
+        ;;
+esac

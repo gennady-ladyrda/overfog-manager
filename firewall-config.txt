@@ -1,0 +1,276 @@
+package firewall
+
+config defaults
+        option syn_flood '1'
+        option input 'REJECT'
+        option output 'ACCEPT'
+        option forward 'REJECT'
+        option flow_offloading '1'
+        option flow_offloading_hw '1'
+
+config zone
+        option name 'lan'
+        list network 'lan'
+        option input 'ACCEPT'
+        option output 'ACCEPT'
+        option forward 'ACCEPT'
+
+config zone
+        option name 'wan'
+        list network 'wan'
+        list network 'wan6'
+        list network 'wwan'
+        list network 'tethering'
+        option input 'DROP'
+        option output 'ACCEPT'
+        option forward 'REJECT'
+        option masq '1'
+        option mtu_fix '1'
+
+config forwarding
+        option src 'lan'
+        option dest 'wan'
+        option enabled '1'
+
+config rule
+        option name 'Allow-DHCP-Renew'
+        option src 'wan'
+        option proto 'udp'
+        option dest_port '68'
+        option target 'ACCEPT'
+        option family 'ipv4'
+
+config rule
+        option name 'Allow-IGMP'
+        option src 'wan'
+        option proto 'igmp'
+        option family 'ipv4'
+        option target 'ACCEPT'
+
+config rule
+        option name 'Allow-DHCPv6'
+        option src 'wan'
+        option proto 'udp'
+        option dest_port '546'
+        option family 'ipv6'
+        option target 'ACCEPT'
+
+config rule
+        option name 'Allow-MLD'
+        option src 'wan'
+        option proto 'icmp'
+        option src_ip 'fe80::/10'
+        list icmp_type '130/0'
+        list icmp_type '131/0'
+        list icmp_type '132/0'
+        list icmp_type '143/0'
+        option family 'ipv6'
+        option target 'ACCEPT'
+
+config rule
+        option name 'Allow-ICMPv6-Input'
+        option src 'wan'
+        option proto 'icmp'
+        option limit '1000/sec'
+        option family 'ipv6'
+        option target 'ACCEPT'
+        list icmp_type 'destination-unreachable'
+        list icmp_type 'packet-too-big'
+        list icmp_type 'time-exceeded'
+        list icmp_type 'bad-header'
+        list icmp_type 'unknown-header-type'
+        list icmp_type 'router-solicitation'
+        list icmp_type 'neighbour-solicitation'
+        list icmp_type 'router-advertisement'
+        list icmp_type 'neighbour-advertisement'
+
+config rule
+        option name 'Allow-ICMPv6-Forward'
+        option src 'wan'
+        option dest '*'
+        option proto 'icmp'
+        option limit '1000/sec'
+        option family 'ipv6'
+        option target 'ACCEPT'
+        list icmp_type 'destination-unreachable'
+        list icmp_type 'packet-too-big'
+        list icmp_type 'time-exceeded'
+        list icmp_type 'bad-header'
+        list icmp_type 'unknown-header-type'
+
+config rule
+        option name 'Allow-IPSec-ESP'
+        option src 'wan'
+        option dest 'lan'
+        option proto 'esp'
+        option target 'ACCEPT'
+
+config rule
+        option name 'Allow-ISAKMP'
+        option src 'wan'
+        option dest 'lan'
+        option dest_port '500'
+        option proto 'udp'
+        option target 'ACCEPT'
+
+config zone
+        option name 'guest'
+        option network 'guest'
+        option forward 'REJECT'
+        option output 'ACCEPT'
+        option input 'REJECT'
+
+config forwarding
+        option src 'guest'
+        option dest 'wan'
+        option enabled '1'
+
+config rule
+        option name 'Allow-DHCP'
+        option src 'guest'
+        option target 'ACCEPT'
+        option proto 'udp'
+        option dest_port '67-68'
+
+config rule
+        option name 'Allow-DNS'
+        option src 'guest'
+        option target 'ACCEPT'
+        option proto 'tcp udp'
+        option dest_port '53'
+
+config include 'nat6'
+        option path '/etc/firewall.nat6'
+        option reload '1'
+
+config include 'dns_order'
+        option type 'script'
+        option path '/etc/firewall.dns_order'
+        option reload '1'
+        option enabled '1'
+
+config include 'dmz_exclude'
+        option type 'script'
+        option path '/etc/firewall.dmz.exclude'
+        option reload '1'
+
+config include 'security'
+        option type 'script'
+        option path '/etc/firewall.security'
+        option reload '1'
+
+config rule 'sambasharewan'
+        option src 'wan'
+        option dest_port '137 138 139 445'
+        option dest_proto 'tcpudp'
+        option target 'DROP'
+        option gl_prio '2'
+
+config rule 'sambasharelan'
+        option src 'lan'
+        option dest_port '137 138 139 445'
+        option dest_proto 'tcpudp'
+        option target 'ACCEPT'
+        option gl_prio '2'
+
+config rule 'glnas_ser'
+        option src 'wan'
+        option dest_port '6000-6002'
+        option dest_proto 'tcp'
+        option target 'DROP'
+        option gl_prio '2'
+
+config rule 'webdav_wan'
+        option src 'wan'
+        option dest_port '6008'
+        option dest_proto 'tcp'
+        option target 'DROP'
+        option gl_prio '2'
+
+config zone 'ovpnclient1'
+        option name 'ovpnclient1'
+        option forward 'ACCEPT'
+        option output 'ACCEPT'
+        option mtu_fix '1'
+        option network 'ovpnclient1'
+        option input 'DROP'
+        option masq '1'
+        option masq6 '1'
+        option enabled '0'
+
+config forwarding 'lan2ovpnclient1'
+        option src 'lan'
+        option dest 'ovpnclient1'
+
+config forwarding 'guest2ovpnclient1'
+        option src 'guest'
+        option dest 'ovpnclient1'
+
+config forwarding 'wan2ovpnclient1'
+        option src 'wan'
+        option dest 'ovpnclient1'
+
+config forwarding 'ovpnserver2ovpnclient1'
+        option src 'ovpnserver'
+        option dest 'ovpnclient1'
+
+config forwarding 'wgserver2ovpnclient1'
+        option src 'wgserver'
+        option dest 'ovpnclient1'
+
+config zone
+        option name 'iot'
+        option network 'iot'
+        option forward 'REJECT'
+        option output 'ACCEPT'
+        option input 'REJECT'
+
+config forwarding
+        option src 'iot'
+        option dest 'wan'
+
+config rule
+        option name 'Allow-DHCP'
+        option src 'iot'
+        option target 'ACCEPT'
+        option proto 'udp'
+        option dest_port '67-68'
+
+config rule
+        option name 'Allow-DNS'
+        option src 'iot'
+        option target 'ACCEPT'
+        option proto 'tcp udp'
+        option dest_port '53'
+
+config include
+        option enabled '1'
+        option type 'script'
+        option path '/etc/netifyd/iptables-init.sh'
+        option reload '1'
+        option fw4_compatible '1'
+
+config include
+        option type 'script'
+        option path '/etc/firewall.pf'
+        option reload '0'
+
+config include 'portal_ttl'
+        option path '/etc/firewall-portal.user'
+        option reload '1'
+
+config include 'glblock'
+        option type 'script'
+        option path '/usr/bin/gl_block.sh'
+        option reload '1'
+
+config zone
+        option name 'singbox'
+        option device 'tun0'
+        option input 'ACCEPT'
+        option output 'ACCEPT'
+        option forward 'ACCEPT'
+
+config forwarding
+        option src 'lan'
+        option dest 'singbox'

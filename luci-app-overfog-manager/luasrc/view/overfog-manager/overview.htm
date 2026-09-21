@@ -1,0 +1,58 @@
+<%+header%>
+
+<h2><%:Overfog Manager%></h2>
+<p><%:Diagnostics and profile operations through the shared overfogctl core.%></p>
+
+<div class="cbi-map">
+  <div class="cbi-section">
+    <h3><%:Doctor result%></h3>
+    <pre id="overfog-doctor"><%=luci.util.pcdata(doctor_json or "{}")%></pre>
+  </div>
+
+  <div class="cbi-section">
+    <h3><%:Profile test%></h3>
+    <form method="post">
+      <input type="hidden" name="action" value="test" />
+      <input type="text" name="profile" placeholder="finland" />
+      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Test%>" />
+    </form>
+  </div>
+
+  <div class="cbi-section">
+    <h3><%:Import HAPP/Xray profile%></h3>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="import" />
+      <input type="file" name="happ_file" accept="application/json,.json" required="required" />
+      <input type="text" name="country" placeholder="FI" />
+      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Import%>" />
+    </form>
+  </div>
+
+  <div class="cbi-section">
+    <h3><%:Switch profile%></h3>
+    <form method="post">
+      <input type="hidden" name="action" value="switch" />
+      <input type="text" name="profile" placeholder="finland" />
+      <label><input type="checkbox" name="confirm" value="1" /> <%:I understand this restarts sing-box%></label>
+      <input class="cbi-button cbi-button-reset" type="submit" value="<%:Switch%>" />
+    </form>
+  </div>
+
+  <div class="cbi-section">
+    <h3><%:Rollback%></h3>
+    <form method="post">
+      <input type="hidden" name="action" value="rollback" />
+      <label><input type="checkbox" name="confirm" value="1" /> <%:I understand this restores the latest backup%></label>
+      <input class="cbi-button cbi-button-reset" type="submit" value="<%:Rollback%>" />
+    </form>
+  </div>
+
+  <% if action_output and action_output ~= "" then %>
+  <div class="cbi-section">
+    <h3><%:Action result%></h3>
+    <pre><%=luci.util.pcdata(action_output)%></pre>
+  </div>
+  <% end %>
+</div>
+
+<%+footer%>
