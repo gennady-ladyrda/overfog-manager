@@ -5,8 +5,12 @@
 The router VPN configuration is healthy and reboot-tested. The repository now
 contains the router-derived POSIX shell CLI and shared shell libraries. The
 profiles `Germaniya_2` and `Estoniya_1` were switched successfully on the
-router on 2026-09-22. A clean `switch → rollback` test completed successfully;
-`Estoniya_1` is currently active and matches the active config.
+router on 2026-09-22. A clean `switch → rollback` test completed successfully.
+The latest router read-only check reports `Estoniya_1` active and matching the
+active config.
+
+The confirmed watchdog priority order is `Germaniya_2 Estoniya_1 finland`.
+The legacy profile `🇩🇪_Германия_№2` is intentionally excluded.
 
 The current CLI commands are:
 
@@ -95,5 +99,52 @@ provider secrets.
 
 The user verified the complete LuCI flow: profile list, profile test, switch
 to `Germaniya_2`, Doctor/runtime checks, rollback, and restoration of
-`Estoniya_1`. Results matched the expected outputs exactly. The final active
-profile is `Estoniya_1` and `active_config_match` is `true`.
+`Estoniya_1`. Results matched the expected outputs exactly. The latest
+read-only check reports active profile `Estoniya_1` and
+`active_config_match` is `true`.
+
+## Next feature: automatic failover
+
+The agreed design is documented in `ARCHITECTURE.md`. It is not implemented
+yet. The planned watchdog will run as an OpenWrt `procd` service, use both
+`example.com` and `api.ipify.org` checks, require three consecutive failures,
+use explicit profile priority and cooldown, and remain on a recovered working
+profile until a manual switch or the next failure. Automatic failback is not
+planned.
+
+Automatic switching will use the existing transactional CLI path and a
+separate bounded recovery area under `/etc/sing-box/backups/automatic/`.
+Successful transitions retain only the single previous known-good automatic
+backup; manual and historical backups are not removed.
+
+The first implementation slice is now present: disabled-by-default sample UCI
+configuration at `config/overfog-manager`, shared `lib/watchdog.sh` helpers,
+and secret-safe `overfogctl watchdog config/state` diagnostics. The local
+monitor loop, operation lock, automatic candidate switching, cooldown, bounded
+automatic backup pruning, and `procd` service have now been implemented but
+are deployed in the disabled state. Router shell syntax and config/state
+diagnostics passed; the controlled monitor-once failover path is router-
+validated. The watchdog is now enabled through UCI and its `procd` process has
+passed two 60-second healthy cycles without switching.
+
+A one-shot watchdog run was validated on the router with temporary state and
+the confirmed profile order. It reported `Watchdog healthy: Germaniya_2` and
+wrote zero consecutive failures with an empty cooldown map. No switch or
+restart occurred.
+
+A controlled failover test was completed on 2026-09-23. A temporary curl
+simulator caused three consecutive failed health cycles. The watchdog switched
+from the actual starting profile `Estoniya_1` to `Germaniya_2`; rollback then
+restored `Estoniya_1`. Both states passed Doctor, including
+`active_config_match: true`, and the temporary simulator/state/backup files
+were removed. The watchdog service remains disabled.
+
+The subsequent long-running test enabled the watchdog and its service
+autostart. Two 60-second cycles completed with `Estoniya_1` active, zero
+consecutive failures, empty cooldown, and healthy Doctor output. The deployment
+script now preserves an existing `/etc/config/overfog-manager` instead of
+overwriting runtime watchdog settings.
+
+For every significant design, implementation, deployment, or verification
+change, update the architecture, development-plan, project-state, and—when
+applicable—deployment-log artifacts in the same change.

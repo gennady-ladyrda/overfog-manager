@@ -58,6 +58,28 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertIn("overfogctl rollback", controller)
         self.assertIn('meta.file ~= ""', controller)
 
+    def test_watchdog_configuration_is_disabled_by_default(self):
+        config = (ROOT / "config" / "overfog-manager").read_text(encoding="utf-8")
+        self.assertIn("option enabled '0'", config)
+        self.assertIn("option interval '60'", config)
+        self.assertIn("option failure_threshold '3'", config)
+        self.assertIn("option cooldown '600'", config)
+        self.assertIn("option profile_order 'Germaniya_2 Estoniya_1 finland'", config)
+
+    def test_watchdog_is_secret_safe_and_documented(self):
+        watchdog = (ROOT / "lib" / "watchdog.sh").read_text(encoding="utf-8")
+        self.assertIn("WATCHDOG_STATE_FILE", watchdog)
+        self.assertIn("watchdog_state_valid", watchdog)
+        self.assertNotIn("uuid", watchdog.lower())
+
+    def test_watchdog_service_is_disabled_by_configuration_not_code(self):
+        service = (ROOT / "etc" / "init.d" / "overfog-manager-watchdog").read_text(encoding="utf-8")
+        self.assertIn("/usr/bin/overfogctl watchdog monitor", service)
+        self.assertIn("USE_PROCD=1", service)
+        cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
+        self.assertIn("cmd_watchdog_monitor_once", cli)
+        self.assertIn("WATCHDOG_AUTOMATIC_BACKUP_DIR", cli)
+
     def test_shell_syntax(self):
         shell = shutil.which("sh")
         if shell is None:

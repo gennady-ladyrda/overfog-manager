@@ -10,11 +10,11 @@
       <change beforePath="$PROJECT_DIR$/DEPLOYMENT_LOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOYMENT_LOG.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEVELOPMENT_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT_PLAN.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PROJECT_STATE.md" beforeDir="false" afterPath="$PROJECT_DIR$/PROJECT_STATE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/import.sh" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/controller/overfog-manager.lua" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/controller/overfog-manager.lua" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/view/overfog-manager/overview.htm" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/view/overfog-manager/overview.htm" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/overfogctl" beforeDir="false" afterPath="$PROJECT_DIR$/overfogctl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/deploy.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/deploy.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/install.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/install.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/test_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_repository.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -25,9 +25,9 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 3
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
   <component name="ProjectId" id="3Jc83fPfy8CMI5wgZsKAdBPLwuK" />
   <component name="ProjectLevelVcsManager">
     <ConfirmationsSetting value="1" id="Add" />
@@ -42,8 +42,9 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "SHELLCHECK.PATH": "C:\\Users\\Admin\\AppData\\Roaming\\JetBrains\\PyCharmCE2025.1\\plugins\\Shell Script\\shellcheck.exe",
-    "git-widget-placeholder": "feature/add-happ-profile",
-    "ignore.virus.scanning.warn.message": "true"
+    "git-widget-placeholder": "feature/auto-switch",
+    "ignore.virus.scanning.warn.message": "true",
+    "settings.editor.selected.configurable": "terminal"
   }
 }]]></component>
   <component name="RecentsManager">

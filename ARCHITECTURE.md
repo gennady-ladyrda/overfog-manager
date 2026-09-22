@@ -39,6 +39,12 @@ Production defaults remain:
 - `/etc/sing-box/backups/` — known-good backups, directory mode `700`;
 - `/etc/sing-box/active-profile` — active profile name.
 
+Automatic failover state and retention metadata will be kept separately from
+manual and historical transaction backups. The planned automatic recovery area
+is `/etc/sing-box/backups/automatic/`; it may contain only the single previous
+known-good state, its active-profile file, and secret-free metadata. Automatic
+cleanup must not remove existing manual or historical backups.
+
 For local tests only, `OVERFOG_CONFIG`, `OVERFOG_PROFILE_DIR`,
 `OVERFOG_BACKUP_DIR`, and `OVERFOG_ACTIVE_FILE` may override these paths.
 
@@ -78,6 +84,53 @@ state.
 Historical `fatal/error` matches from `logread` are reported by `doctor` as a
 warning but do not block runtime validation. Process, `tun0`, config, and
 connectivity checks remain enforced for switching.
+
+## Automatic failover watchdog
+
+The watchdog will run as a separate OpenWrt `procd` service and will invoke the
+shared `overfogctl` transaction logic. It must not implement an independent
+switching path. Its responsibilities are limited to health observation,
+candidate selection, cooldown state, and serialized invocation of the CLI.
+
+The health check requires both of the following to succeed:
+
+- `curl -4 --http1.1 -k --connect-timeout 10 https://example.com/ -o /dev/null`;
+- `curl -4 -s https://api.ipify.org`, with a valid IPv4 result.
+
+The IP address is observed and validated, never compared to a fixed expected
+address. A single failed probe does not trigger switching. The watchdog uses
+three consecutive failed checks to mark the active profile failed. A candidate
+must pass the complete post-switch checks before becoming active. Failed
+candidates enter a cooldown and must not be retried continuously.
+
+The watchdog remains on the current working profile until a failure or manual
+switch. It does not automatically fail back to a higher-priority profile after
+that profile recovers. Profile selection uses an explicit configured priority
+order; provider-specific defaults must not be invented.
+
+Only one monitor, switch, or rollback operation may run at a time. A lock is
+required. A failover attempt must use the same backup, atomic replacement,
+restart, runtime verification, and automatic restore rules as manual `switch`.
+
+### Automatic backup retention
+
+Before a candidate switch, the current known-good state is saved as a
+temporary automatic recovery backup. It is retained while the candidate is
+being validated. After a successful switch, it becomes the single automatic
+recovery backup and replaces the previous automatic backup. On failure, it is
+used to restore the previous profile. This prevents unbounded growth while
+preserving recovery during a transaction. Manual and historical backups remain
+untouched.
+
+## Documentation maintenance rule
+
+Every significant implementation, deployment, router verification, or design
+decision must update the relevant architecture and handoff artifacts in the
+same change. At minimum, update `ARCHITECTURE.md` for design or constraint
+changes, `DEVELOPMENT_PLAN.md` for task status, and `PROJECT_STATE.md` for
+current behavior, verification, and continuation instructions. Deployment or
+router changes also update `DEPLOYMENT_LOG.md`. These files are part of the
+handoff contract for future sessions and must remain current.
 
 ## Security and safety constraints
 

@@ -20,6 +20,12 @@ LIB_DIR="${OVERFOG_LIB_DIR:-$SCRIPT_DIR/lib}"
 . "$LIB_DIR/service.sh"
 # shellcheck source=lib/import.sh
 . "$LIB_DIR/import.sh"
+# shellcheck source=lib/watchdog.sh
+. "$LIB_DIR/watchdog.sh"
+# shellcheck source=lib/lock.sh
+. "$LIB_DIR/lock.sh"
+
+OVERFOGCTL_BIN="${OVERFOGCTL_BIN:-$0}"
 
 die() {
     echo "ERROR: $*" >&2
@@ -243,6 +249,9 @@ cmd_switch() {
     validate_profile "$PROFILE" ||
         die "Invalid or incomplete profile: $NAME"
 
+    acquire_operation_lock ||
+        die "Another switch, rollback, or watchdog operation is already running"
+
     TMP="${TMPDIR:-/tmp}/overfog-switch-$$.json"
     BACKUP_ID="$(date +%Y%m%d-%H%M%S)-$$"
     BACKUP_CONFIG="$BACKUP_DIR/$BACKUP_ID.config.json"
@@ -250,6 +259,7 @@ cmd_switch() {
 
     cleanup_switch() {
         rm -f "$TMP"
+        release_operation_lock
     }
 
     trap cleanup_switch 0 1 2 15
@@ -296,6 +306,14 @@ cmd_switch() {
 cmd_rollback() {
     require_files
 
+    acquire_operation_lock ||
+        die "Another switch, rollback, or watchdog operation is already running"
+
+    cleanup_rollback() {
+        release_operation_lock
+    }
+    trap cleanup_rollback 0 1 2 15
+
     LATEST_CONFIG="$(find_latest_backup "$BACKUP_DIR")" ||
         die "No managed backup found"
     BACKUP_ID="$(basename "$LATEST_CONFIG" .config.json)"
@@ -315,6 +333,8 @@ cmd_rollback() {
 
     echo "Rollback complete"
     echo "Restored backup: $BACKUP_ID"
+    trap - 0 1 2 15
+    cleanup_rollback
 }
 
 cmd_import() {
@@ -498,7 +518,110 @@ Usage:
   overfogctl rollback
   overfogctl doctor [--json]
   overfogctl import FILE [--country COUNTRY]
+  overfogctl watchdog {config|state|once|monitor}
 EOF2
+}
+
+cmd_watchdog() {
+    subcommand="${1:-}"
+    case "$subcommand" in
+        config)
+            enabled="false"
+            watchdog_enabled && enabled="true"
+            jq -n \
+                --argjson enabled "$enabled" \
+                --arg interval "$(watchdog_interval)" \
+                --arg threshold "$(watchdog_failure_threshold)" \
+                --arg cooldown "$(watchdog_cooldown)" \
+                --arg order "$(watchdog_profile_order)" \
+                '{enabled:$enabled, interval:($interval|tonumber), failure_threshold:($threshold|tonumber), cooldown:($cooldown|tonumber), profile_order:($order|split(" ")|map(select(length > 0)))}'
+            ;;
+        state)
+            watchdog_state_valid || watchdog_state_init || die "Cannot initialize watchdog state"
+            jq 'del(.cooldown)' "$WATCHDOG_STATE_FILE"
+            ;;
+        once)
+            cmd_watchdog_monitor_once
+            ;;
+        monitor)
+            cmd_watchdog_monitor
+            ;;
+        *)
+            die "Usage: overfogctl watchdog {config|state|once|monitor}"
+        ;;
+    esac
+}
+
+cmd_watchdog_monitor_once() {
+    require_files
+    watchdog_enabled || {
+        echo "Watchdog disabled"
+        return 0
+    }
+    watchdog_validate_config ||
+        die "Invalid watchdog configuration"
+    watchdog_state_init ||
+        die "Cannot initialize watchdog state"
+
+    ACTIVE="$(active_profile)"
+    STATE_ACTIVE="$(watchdog_state_profile 2>/dev/null || true)"
+    FAILURES="$(watchdog_state_failures 2>/dev/null || echo 0)"
+    COOLDOWNS="$(watchdog_state_cooldowns 2>/dev/null || echo '{}')"
+    [ "$STATE_ACTIVE" = "$ACTIVE" ] || FAILURES=0
+
+    if check_connectivity >/dev/null 2>&1 && check_exit_ip >/dev/null 2>&1; then
+        COOLDOWNS="$(watchdog_clear_cooldown "$COOLDOWNS" "$ACTIVE")"
+        watchdog_state_write "$ACTIVE" 0 "$COOLDOWNS" ||
+            die "Cannot write watchdog state"
+        echo "Watchdog healthy: $ACTIVE"
+        return 0
+    fi
+
+    FAILURES=$((FAILURES + 1))
+    THRESHOLD="$(watchdog_failure_threshold)"
+    if [ "$FAILURES" -lt "$THRESHOLD" ]; then
+        watchdog_state_write "$ACTIVE" "$FAILURES" "$COOLDOWNS" ||
+            die "Cannot write watchdog state"
+        echo "Watchdog failure $FAILURES/$THRESHOLD: $ACTIVE"
+        return 0
+    fi
+
+    NOW="$(watchdog_now)"
+    COOLDOWN_SECONDS="$(watchdog_cooldown)"
+    ORDER="$(watchdog_profile_order)"
+    for candidate in $ORDER; do
+        [ "$candidate" = "$ACTIVE" ] && continue
+        watchdog_candidate_available "$candidate" "$COOLDOWNS" "$NOW" || continue
+        [ -r "$PROFILE_DIR/$candidate.json" ] || continue
+
+        mkdir -p "$WATCHDOG_AUTOMATIC_BACKUP_DIR" || continue
+        if OVERFOG_BACKUP_DIR="$WATCHDOG_AUTOMATIC_BACKUP_DIR" \
+            "$OVERFOGCTL_BIN" switch "$candidate" >/dev/null 2>&1; then
+            UNTIL=$((NOW + COOLDOWN_SECONDS))
+            COOLDOWNS="$(watchdog_cooldown_profile "$COOLDOWNS" "$ACTIVE" "$UNTIL")"
+            COOLDOWNS="$(watchdog_clear_cooldown "$COOLDOWNS" "$candidate")"
+            watchdog_state_write "$candidate" 0 "$COOLDOWNS" ||
+                die "Cannot write watchdog state"
+            watchdog_prune_automatic_backups
+            echo "Watchdog switched: $ACTIVE -> $candidate"
+            return 0
+        fi
+
+        UNTIL=$((NOW + COOLDOWN_SECONDS))
+        COOLDOWNS="$(watchdog_cooldown_profile "$COOLDOWNS" "$candidate" "$UNTIL")"
+    done
+
+    watchdog_state_write "$ACTIVE" "$FAILURES" "$COOLDOWNS" ||
+        die "Cannot write watchdog state"
+    echo "Watchdog: no healthy candidate for $ACTIVE" >&2
+    return 0
+}
+
+cmd_watchdog_monitor() {
+    while :; do
+        cmd_watchdog_monitor_once || true
+        sleep "$(watchdog_interval 2>/dev/null || echo 60)"
+    done
 }
 
 COMMAND="${1:-}"
@@ -536,6 +659,10 @@ case "$COMMAND" in
     import)
         shift
         cmd_import "$@"
+        ;;
+    watchdog)
+        shift
+        cmd_watchdog "$@"
         ;;
     *)
         die "Unknown command: $COMMAND"

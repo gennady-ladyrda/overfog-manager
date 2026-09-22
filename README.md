@@ -13,6 +13,8 @@ prototype in [`overfogctl`](overfogctl). It supports:
 - `rollback` (router only)
 - `doctor [--json]` (read-only)
 - `import FILE [--country COUNTRY]` (does not activate the profile)
+- `watchdog config`, `watchdog state`, `watchdog once`, and `watchdog monitor`
+  (the monitor is disabled by default)
 
 The commands use the production paths by default. For local tests and dry-run
 work, override them with `OVERFOG_CONFIG`, `OVERFOG_PROFILE_DIR`,
@@ -34,3 +36,7 @@ and `ip` dependencies when run against the router.
 Rollback is available as a separate command and is also used automatically by
 `switch`. HAPP/Xray import derives a safe profile name from `remarks` and does
 not activate the imported profile.
+
+Automatic failover is the next implementation milestone. Its agreed design is
+recorded in `ARCHITECTURE.md`; the sample UCI configuration in
+`config/overfog-manager` is disabled until the watchdog is deployed and tested.

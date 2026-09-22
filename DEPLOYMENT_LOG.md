@@ -180,3 +180,78 @@ profile test, switch to `Germaniya_2`, Doctor/runtime checks, rollback, and
 restoration of `Estoniya_1`. The displayed results matched the expected
 outputs, including `active_config_match: true`, process/tun0, connectivity,
 and firewall checks. The LuCI and CLI transaction paths are now both verified.
+
+## 2026-09-22 — watchdog disabled deployment
+
+The watchdog implementation was deployed with previous files saved under:
+
+```text
+/etc/sing-box/backups/overfog-manager-deploy/
+```
+
+Installed components:
+
+```text
+/usr/bin/overfogctl
+/usr/bin/overfog-manager-lib/watchdog.sh
+/usr/bin/overfog-manager-lib/lock.sh
+/etc/config/overfog-manager
+/etc/init.d/overfog-manager-watchdog
+```
+
+The UCI configuration is disabled by default (`enabled=0`, interval `60`,
+failure threshold `3`, cooldown `600`, empty profile order). Router `sh -n`
+checks and secret-safe `watchdog config/state` diagnostics passed. The
+watchdog service was not started or enabled, and no profile switch, sing-box
+restart, or monitor cycle was executed by this deployment. Final
+`doctor --json` remained healthy with active profile `Germaniya_2`, matching
+config, running sing-box, `tun0`, connectivity, and firewall checks.
+
+The confirmed watchdog profile order was then written to UCI and committed:
+
+```text
+Germaniya_2 Estoniya_1 finland
+```
+
+The watchdog remains disabled and no service restart, profile switch, or
+monitor cycle was performed. `watchdog config` reported the three profiles in
+the confirmed order, and the final Doctor check remained healthy with
+`Germaniya_2` active and matching the config.
+
+A one-shot watchdog health check was then run with temporary state and the
+confirmed order. It reported `Watchdog healthy: Germaniya_2`, zero consecutive
+failures, and an empty cooldown map. The temporary state was removed; no
+switch, restart, or persistent watchdog state change occurred.
+
+## 2026-09-23 — controlled automatic failover test
+
+A temporary curl simulator was used only in `/tmp`: the first six curl calls
+failed, representing three watchdog health cycles, and later calls returned a
+syntactically valid test IPv4. The watchdog automatically switched from the
+actual starting profile `Estoniya_1` to `Germaniya_2` after the third failed
+cycle. The temporary automatic backup was used by rollback, which restored
+`Estoniya_1`; both post-switch and post-rollback Doctor checks reported
+`active_config_match: true`.
+
+After cleanup, a real curl/Doctor check succeeded with HTTP 200 and exit IP
+`217.60.100.107`. The watchdog service remains disabled and no persistent
+watchdog state or temporary simulator files remain.
+
+## 2026-09-23 — watchdog long-running healthy test
+
+The watchdog was enabled in UCI and started through `procd`. The service is
+enabled in `/etc/rc.d/` and the monitor process remained running across two
+60-second cycles. State stayed at:
+
+```json
+{
+  "active_profile": "Estoniya_1",
+  "consecutive_failures": 0,
+  "cooldown": {}
+}
+```
+
+Doctor remained healthy with valid config, process, `tun0`, connectivity,
+firewall checks, and `active_config_match: true`. The deployment script was
+changed to preserve an existing UCI watchdog configuration on later deploys,
+so a code update cannot silently disable or reorder the live watchdog.

@@ -26,6 +26,22 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
 - [x] Improve imported profile naming: normalize whitespace, remove emoji and
   decorative punctuation such as `№`, prevent leading separators, and
   transliterate Cyrillic to Latin (`Германия` becomes `Germaniya`).
+- [x] Document automatic failover architecture, health criteria, no-failback
+  policy, serialized switching, cooldown, and bounded automatic backups.
+- [x] Add disabled-by-default UCI watchdog configuration and secret-safe state
+  helpers/diagnostics.
+- [~] Implement the automatic failover watchdog as an OpenWrt `procd` service;
+  monitor loop, lock, cooldown, candidate failover, and bounded automatic
+  backup code exist locally but are not yet router-validated.
+- [x] Add configurable profile priority, failure threshold, probe interval,
+  cooldown, and secret-free watchdog state/diagnostics.
+- [x] Configure the confirmed router priority order:
+  `Germaniya_2 Estoniya_1 finland`.
+- [x] Run a one-shot healthy watchdog check on the router using temporary
+  state; no switch was triggered.
+- [x] Test automatic failover and bounded backup retention on the router with
+  a temporary six-failure curl simulator and cleanup after rollback.
+- [x] Run two healthy 60-second cycles with watchdog enabled under `procd`.
 
 ## Rules for updating this file
 
