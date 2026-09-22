@@ -10,6 +10,11 @@
   </div>
 
   <div class="cbi-section">
+    <h3><%:Profiles%></h3>
+    <pre id="overfog-profiles"><%=luci.util.pcdata(profiles_json or "[]")%></pre>
+  </div>
+
+  <div class="cbi-section">
     <h3><%:Profile test%></h3>
     <form method="post">
       <input type="hidden" name="action" value="test" />
@@ -22,7 +27,9 @@
     <h3><%:Import HAPP/Xray profile%></h3>
     <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="action" value="import" />
-      <input type="file" name="happ_file" accept="application/json,.json" required="required" />
+      <input type="file" name="happ_file" accept="application/json,.json" />
+      <p><%:or paste the HAPP/Xray JSON below%></p>
+      <textarea name="happ_json" rows="12" cols="80" placeholder="{ ... }"></textarea>
       <input type="text" name="country" placeholder="FI" />
       <input class="cbi-button cbi-button-apply" type="submit" value="<%:Import%>" />
     </form>

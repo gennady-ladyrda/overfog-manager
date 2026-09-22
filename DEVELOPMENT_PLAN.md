@@ -8,9 +8,11 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
 - [x] Centralize paths, profile validation, candidate generation, checks,
   service restart, and transaction file operations.
 - [x] Implement transactional `switch` with automatic restore.
-- [~] Validate `switch` on the router; CLI/LuCI read-only deployment is done,
-  profile-changing test still requires explicit confirmation.
-- [x] Add explicit `rollback` command and managed backup selection.
+- [x] Validate `switch` on the router with `Germaniya_2` and `Estoniya_1`;
+  backup creation, restart, process/tun0/connectivity/exit-IP checks, and
+  active-profile updates all succeeded.
+- [x] Add explicit `rollback` command and managed backup selection; clean
+  router test restored `Estoniya_1` with `active_config_match: true`.
 - [x] Add read-only `doctor` with secret-safe structured output (human and
   JSON), including the confirmed firewall zone/forwarding checks and IP
   format observation.
@@ -19,8 +21,11 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
   commands; the returned IP is observed, not compared with the server address.
 - [x] Add POSIX shell integration test harness; execution still requires a
   POSIX environment with `sh` and `jq`.
-- [~] Add LuCI thin UI over shared operations; `test` is browser-verified,
-  while import/switch/rollback still require router validation.
+- [x] Add LuCI thin UI over shared operations; test/import, switch, and
+  rollback were verified through the router UI using the shared CLI.
+- [x] Improve imported profile naming: normalize whitespace, remove emoji and
+  decorative punctuation such as `№`, prevent leading separators, and
+  transliterate Cyrillic to Latin (`Германия` becomes `Germaniya`).
 
 ## Rules for updating this file
 

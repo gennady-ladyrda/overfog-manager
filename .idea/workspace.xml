@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0877a59d-7d9a-4243-9ac6-220b6e7b2154" name="Changes" comment="" />
+    <list default="true" id="0877a59d-7d9a-4243-9ac6-220b6e7b2154" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEPLOYMENT_LOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEPLOYMENT_LOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEVELOPMENT_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT_PLAN.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/PROJECT_STATE.md" beforeDir="false" afterPath="$PROJECT_DIR$/PROJECT_STATE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/import.sh" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/controller/overfog-manager.lua" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/controller/overfog-manager.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/view/overfog-manager/overview.htm" beforeDir="false" afterPath="$PROJECT_DIR$/luci-app-overfog-manager/luasrc/view/overfog-manager/overview.htm" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/overfogctl" beforeDir="false" afterPath="$PROJECT_DIR$/overfogctl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_repository.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -30,7 +42,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "SHELLCHECK.PATH": "C:\\Users\\Admin\\AppData\\Roaming\\JetBrains\\PyCharmCE2025.1\\plugins\\Shell Script\\shellcheck.exe",
-    "git-widget-placeholder": "master",
+    "git-widget-placeholder": "feature/add-happ-profile",
     "ignore.virus.scanning.warn.message": "true"
   }
 }]]></component>

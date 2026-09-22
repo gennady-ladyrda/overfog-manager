@@ -70,6 +70,24 @@ cmd_list() {
 
     ACTIVE="$(active_profile)"
 
+    if [ "${1:-}" = "--json" ]; then
+        set -- "$PROFILE_DIR"/*.json
+        if [ ! -f "$1" ]; then
+            printf '%s\n' '[]'
+            return 0
+        fi
+        jq -s --arg active "$ACTIVE" '
+            map({
+                name: (.name // "-"),
+                country: (.country // ""),
+                server: (.outbound.server // ""),
+                port: (.outbound.server_port // null),
+                active: ((.name // "") == $active)
+            })
+        ' "$@"
+        return $?
+    fi
+
     printf "%-8s %-18s %-8s %-35s %s\n" \
         "ACTIVE" "NAME" "COUNTRY" "SERVER" "PORT"
 
@@ -473,7 +491,7 @@ usage() {
     cat <<EOF2
 Usage:
   overfogctl status
-  overfogctl list
+  overfogctl list [--json]
   overfogctl profile-create NAME [COUNTRY]
   overfogctl test PROFILE
   overfogctl switch PROFILE
@@ -490,7 +508,8 @@ case "$COMMAND" in
         cmd_status
         ;;
     list)
-        cmd_list
+        shift
+        cmd_list "$@"
         ;;
     profile-create)
         shift

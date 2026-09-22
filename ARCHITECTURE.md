@@ -47,15 +47,17 @@ They are not printed in full and are stored with mode `600` on the router.
 
 `import FILE [--country COUNTRY]` derives the profile name from the source
 HAPP/Xray `remarks` field. Leading/trailing whitespace is removed, whitespace
-becomes `_`, and only Unicode letters, numbers, `_`, and `-` remain. Import is
-non-activating and refuses to overwrite an existing profile.
+becomes `_`, Cyrillic letters are transliterated to Latin, and decorative
+characters are removed. Import is non-activating and refuses to overwrite an
+existing profile. For example, `Германия №2` becomes `Germaniya_2`.
 
 `doctor --json` exposes the same read-only checks without secrets, allowing a
 future LuCI wrapper to consume the result without duplicating diagnostic logic.
 
-The initial LuCI slice is read-only and renders `doctor --json` through the
-existing authenticated LuCI controller path. Switching, rollback, and import
-are not exposed in the UI until router privilege and ACL behavior is tested.
+The LuCI slice renders `doctor --json` and `list --json` and delegates test,
+import, switch, and rollback actions to the shared CLI through the existing
+authenticated controller path. Switch and rollback remain confirmation-gated
+and require router-side validation before use.
 
 ## Transaction rules
 

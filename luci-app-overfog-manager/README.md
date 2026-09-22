@@ -3,7 +3,7 @@
 LuCI integration for `overfog-manager`.
 
 The page executes the shared `overfogctl` commands. It provides diagnostics,
-profile test, HAPP/Xray upload/import, switch, and rollback forms. It contains
+profile test, HAPP/Xray upload/paste import, switch, and rollback forms. It contains
 no independent profile or transaction logic.
 
 The package expects the CLI and its shared libraries to be installed at:
@@ -19,7 +19,7 @@ The LuCI controller is legacy-Lua compatible with the installed
 Copy these files to the matching paths, then reload LuCI/rpcd as appropriate:
 
 The repository helper is `scripts/install-luci.sh`; it only installs the
-read-only controller and template and does not restart services.
+controller and template and does not restart services.
 
 ```text
 luasrc/controller/overfog-manager.lua

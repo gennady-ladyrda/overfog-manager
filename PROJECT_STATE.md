@@ -3,13 +3,15 @@
 ## Current status
 
 The router VPN configuration is healthy and reboot-tested. The repository now
-contains the router-derived POSIX shell CLI and shared shell libraries. No
-router command has been executed from this repository during this session.
+contains the router-derived POSIX shell CLI and shared shell libraries. The
+profiles `Germaniya_2` and `Estoniya_1` were switched successfully on the
+router on 2026-09-22. A clean `switch → rollback` test completed successfully;
+`Estoniya_1` is currently active and matches the active config.
 
 The current CLI commands are:
 
 - `status`
-- `list`
+- `list [--json]`
 - `profile-create NAME [COUNTRY]`
 - `test PROFILE`
 - `switch PROFILE`
@@ -30,6 +32,7 @@ The current CLI commands are:
   derivation;
 - `scripts/install.sh` and `scripts/deploy.sh` — CLI plus library deployment;
 - sanitized native, profile, and HAPP/Xray fixtures;
+- LuCI profile list backed by secret-safe `list --json` output;
 - Python repository tests.
 
 `switch` validates and checks a candidate, backs up the current state, installs
@@ -60,11 +63,13 @@ value because the exit IP is dynamic.
 ## Remaining work, in order
 
 1. Run the POSIX shell integration harness in Linux/OpenWrt-like CI.
-2. Validate the deployed LuCI action forms with `test` and sanitized import;
-   `test` is now browser-verified.
-3. Test `switch` on the router only with explicit user approval for the
-   profile-changing operation.
-4. Confirm rollback behavior after a controlled switch test.
+2. Refresh LuCI and confirm the secret-safe profile list is visible; retrying
+   paste of the existing source should report `Source: paste` and the expected
+   duplicate-profile message.
+3. Re-import the HAPP/Xray source only if a new profile is desired; the current
+   `Germaniya_2` import and test are already verified.
+4. Keep the verified router state and use the handoff artifacts for future
+   maintenance. The CLI and LuCI transaction paths are verified.
 
 ## Decisions and constraints
 
@@ -85,3 +90,10 @@ Inspect `git status` and preserve uncommitted user changes. Continue with the
 first unchecked item in “Remaining work”, updating this file and
 `DEVELOPMENT_PLAN.md` after each completed logical task. Do not request real
 provider secrets.
+
+## Latest router verification
+
+The user verified the complete LuCI flow: profile list, profile test, switch
+to `Germaniya_2`, Doctor/runtime checks, rollback, and restoration of
+`Estoniya_1`. Results matched the expected outputs exactly. The final active
+profile is `Estoniya_1` and `active_config_match` is `true`.

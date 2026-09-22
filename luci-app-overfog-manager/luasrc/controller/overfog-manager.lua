@@ -22,10 +22,12 @@ function action_overview()
     local action_output = ""
     local upload_path = os.tmpname()
     local upload_file
+    local upload_received = false
 
     if http.getenv("REQUEST_METHOD") == "POST" then
         http.setfilehandler(function(meta, chunk, eof)
-            if meta and meta.name == "happ_file" and meta.file then
+            if meta and meta.name == "happ_file" and meta.file and meta.file ~= "" then
+                upload_received = true
                 upload_file = upload_file or io.open(upload_path, "w")
                 if chunk and upload_file then
                     upload_file:write(chunk)
@@ -61,27 +63,42 @@ function action_overview()
             end
         elseif action == "import" then
             local country = http.formvalue("country") or ""
+            local pasted_json = http.formvalue("happ_json") or ""
             if upload_file then
                 upload_file:close()
                 upload_file = nil
+            end
+            if not upload_received then
+                fs.unlink(upload_path)
+            end
+            if not upload_received and pasted_json ~= "" then
+                local pasted_file = io.open(upload_path, "w")
+                if pasted_file then
+                    pasted_file:write(pasted_json)
+                    pasted_file:close()
+                end
             end
             if fs.access(upload_path) then
                 local country_arg = ""
                 if country ~= "" then
                     country_arg = " --country " .. util.shellquote(country)
                 end
-                action_output = sys.exec("/usr/bin/overfogctl import " .. util.shellquote(upload_path) .. country_arg .. " 2>&1")
+                local source_kind = upload_received and "upload" or "paste"
+                action_output = "Source: " .. source_kind .. "\n" ..
+                    sys.exec("/usr/bin/overfogctl import " .. util.shellquote(upload_path) .. country_arg .. " 2>&1")
                 fs.unlink(upload_path)
             else
-                action_output = "HAPP/Xray file is required"
+                action_output = "Upload a HAPP/Xray file or paste its JSON content"
             end
         end
     end
 
     local doctor = sys.exec("/usr/bin/overfogctl doctor --json 2>/dev/null")
+    local profiles = sys.exec("/usr/bin/overfogctl list --json 2>/dev/null")
     http.prepare_content("text/html")
     luci.template.render("overfog-manager/overview", {
         doctor_json = doctor,
+        profiles_json = profiles,
         action_output = action_output
     })
 end

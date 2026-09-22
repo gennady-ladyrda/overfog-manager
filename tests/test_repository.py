@@ -41,6 +41,7 @@ class RepositoryFixturesTests(unittest.TestCase):
         happ = self.read_json("happ.sanitized.json")
         normalized = re.sub(r"[^\w-]", "", re.sub(r"\s+", "_", happ["remarks"].strip()), flags=re.UNICODE)
         self.assertEqual(normalized, "Германия_Premium")
+        self.assertNotIn("№", normalized)
 
     def test_no_real_secret_markers_in_fixtures(self):
         text = "\n".join(path.read_text(encoding="utf-8") for path in FIXTURES.glob("*.json"))
@@ -50,10 +51,12 @@ class RepositoryFixturesTests(unittest.TestCase):
     def test_luci_uses_shared_cli_for_operations(self):
         controller = (ROOT / "luci-app-overfog-manager" / "luasrc" / "controller" / "overfog-manager.lua").read_text(encoding="utf-8")
         self.assertIn("doctor --json", controller)
+        self.assertIn("list --json", controller)
         self.assertIn("overfogctl test", controller)
         self.assertIn("overfogctl import", controller)
         self.assertIn("overfogctl switch", controller)
         self.assertIn("overfogctl rollback", controller)
+        self.assertIn('meta.file ~= ""', controller)
 
     def test_shell_syntax(self):
         shell = shutil.which("sh")
