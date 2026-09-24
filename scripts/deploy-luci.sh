@@ -2,7 +2,7 @@
 
 set -eu
 
-: "${ROUTER:?Set ROUTER to the router host, for example root@192.168.9.1}"
+: "${ROUTER:?Set ROUTER to the router host, for example root@router}"
 REMOTE_BACKUP_DIR=${REMOTE_BACKUP_DIR:-/etc/sing-box/backups/overfog-manager-deploy}
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 APP_DIR="$SCRIPT_DIR/luci-app-overfog-manager"

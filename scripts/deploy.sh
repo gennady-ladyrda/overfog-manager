@@ -2,7 +2,7 @@
 
 set -eu
 
-: "${ROUTER:?Set ROUTER to the router host, for example root@192.168.9.1}"
+: "${ROUTER:?Set ROUTER to the router host, for example root@router}"
 REMOTE_PATH=${REMOTE_PATH:-/usr/bin/overfogctl}
 REMOTE_LIB_DIR=${REMOTE_LIB_DIR:-/usr/bin/overfog-manager-lib}
 REMOTE_BACKUP_DIR=${REMOTE_BACKUP_DIR:-/etc/sing-box/backups/overfog-manager-deploy}

@@ -20,18 +20,18 @@ Build `overfog-manager` for a GL.iNet GL-MT3000 (Beryl AX) running OpenWrt 25.12
 - Kernel: 6.12.94
 - Package manager: apk
 - sing-box: 1.12.17, full build with gVisor/uTLS/etc.
-- Current uplink: `sta1`, upstream subnet `192.168.8.0/24`, gateway `192.168.8.1`
-- LAN: `br-lan`, `192.168.9.1/24`
+- Current uplink: `sta1`, upstream subnet and gateway are router-local details
+- LAN: `br-lan`, router-local address
 
 ## Known-good sing-box architecture
 - Config: `/etc/sing-box/config.json`
 - Service UCI: enabled, user root, config above, workdir `/usr/share/sing-box`
-- TUN: `tun0`, `172.19.0.1/30`, MTU 1400
+- TUN: `tun0`, private address range and MTU are router-local details
 - `auto_route: true`, `strict_route: true`
 - **Critical:** TUN stack must be `gvisor`; `system` caused TCP failures on this router.
 - Main outbound tag: `overfog`, VLESS + REALITY + `xtls-rprx-vision`, uTLS fingerprint `qq`.
 - Do not hardcode current UUID/short ID into repository context files.
-- Current server at project bootstrap: `cdn-fl.ai-apiroute.cc:443`; credentials remain only on router/profile files.
+- Current provider server and credentials remain only on router/profile files.
 - `direct` outbound also exists.
 - `route.final = overfog`.
 
@@ -72,7 +72,7 @@ This survived reboot and LAN clients route successfully through sing-box.
 - Russian IPs -> direct via geoip-ru.
 - Apple `17.0.0.0/8` direct rule verified.
 - BitTorrent direct rule installed and reported working.
-- Overfog exit during setup was `178.17.60.19`; do not assume it is permanent.
+- Overfog exit was observed during setup; do not assume it is permanent.
 
 ## Existing manager state on router
 Directories:

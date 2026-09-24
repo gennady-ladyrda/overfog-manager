@@ -2,7 +2,7 @@
 
 ## 2026-09-21 — read-only CLI and LuCI deployment
 
-Target: `root@192.168.9.1` (GL-MT3000).
+Target: GL-MT3000 router (address intentionally omitted).
 
 The deployment used legacy SCP protocol because the router does not provide
 `/usr/libexec/sftp-server`.
@@ -128,7 +128,7 @@ The transaction succeeded and created the backup:
 
 Post-switch checks succeeded: sing-box process running, `tun0` present,
 `example.com` returned HTTP 200, and `api.ipify.org` returned a valid IPv4
-address (`2.27.4.95`). The final `doctor --json` reported valid config,
+address (value intentionally omitted). The final `doctor --json` reported valid config,
 active profile `Germaniya_2`, active/config match, connectivity, cache, and
 firewall checks all successful. `log_clean` remains false because the log
 contains historical/reconnect `ERROR` entries; this field is informational and
@@ -147,7 +147,7 @@ The manually added `Estoniya_1` profile was tested and switched successfully:
 
 The profile passed `sing-box check`. The resulting `doctor --json` reported
 `active_profile: Estoniya_1`, `active_config_match: true`, running sing-box,
-`tun0`, connectivity, firewall checks, and valid exit IP `217.60.100.107`.
+`tun0`, connectivity, firewall checks, and a valid exit IP (value omitted).
 The connectivity probe returned HTTP 200. The switch backup was
 `20260922-211508-24715.config.json`.
 
@@ -169,7 +169,7 @@ successfully. Rollback restored that consistent pre-switch state. Final
 diagnostics reported `active_profile: Estoniya_1`,
 `active_config_match: true`, valid config, running sing-box, `tun0`, cache,
 connectivity, and firewall checks. The HTTP probe returned 200 and the final
-exit IP was `217.60.100.107`.
+exit IP was valid; its value is intentionally omitted.
 
 The CLI transaction path is now verified end-to-end.
 
@@ -234,7 +234,7 @@ cycle. The temporary automatic backup was used by rollback, which restored
 `active_config_match: true`.
 
 After cleanup, a real curl/Doctor check succeeded with HTTP 200 and exit IP
-`217.60.100.107`. The watchdog service remains disabled and no persistent
+valid IPv4. The watchdog service remains disabled and no persistent
 watchdog state or temporary simulator files remain.
 
 ## 2026-09-23 — watchdog long-running healthy test
