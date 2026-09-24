@@ -45,8 +45,8 @@ class RepositoryFixturesTests(unittest.TestCase):
 
     def test_no_real_secret_markers_in_fixtures(self):
         text = "\n".join(path.read_text(encoding="utf-8") for path in FIXTURES.glob("*.json"))
-        self.assertNotIn("cdn-fl.ai-apiroute.cc", text)
-        self.assertNotIn("178.17.60.19", text)
+        self.assertNotIn("ai-apiroute.cc", text)
+        self.assertNotIn("178.17.60.", text)
 
     def test_luci_uses_shared_cli_for_operations(self):
         controller = (ROOT / "luci-app-overfog-manager" / "luasrc" / "controller" / "overfog-manager.lua").read_text(encoding="utf-8")
