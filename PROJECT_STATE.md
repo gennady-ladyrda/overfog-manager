@@ -148,3 +148,42 @@ overwriting runtime watchdog settings.
 For every significant design, implementation, deployment, or verification
 change, update the architecture, development-plan, project-state, and—when
 applicable—deployment-log artifacts in the same change.
+
+## Installer direction
+
+The agreed installer UX uses one self-extracting `overfog-manager-installer.run`
+bundle. It can be downloaded from GitHub or copied to the router and run
+offline. Before writing, it inventories the router and offers grouped choices:
+`CLI`, `LuCI`, `watchdog`, and `configuration`; each group supports keep,
+backup-and-update, skip, or abort. Existing sing-box configuration, profiles,
+and active-profile are never overwritten by manager installation. Installer
+implementation is the next development task.
+
+The first installer implementation slice now exists locally: grouped
+interactive installation for CLI, LuCI, watchdog, and configuration; a
+self-extracting launcher; and `scripts/build-installer.sh` for producing the
+online/offline `.run` bundle. A real bundle was built on the router and passed
+`--check`, detecting the current CLI, LuCI, watchdog, configuration, sing-box
+config, and active profile without writing files. The installer never includes
+or replaces `/etc/sing-box/config.json`.
+
+The user also ran the interactive installer and selected `keep` for all four
+groups (`CLI`, `LuCI`, `watchdog`, `configuration`). It completed successfully
+without updating files or changing sing-box. The non-destructive repeat-run
+path is verified.
+
+The user then selected `update` for the `CLI` group and `keep` for the other
+groups. The installer created deployment backup
+`20260923-022809-installer-25775`, normalized shell line endings, and updated
+the CLI successfully. Post-update Doctor remained fully healthy with
+`Estoniya_1` active and `active_config_match: true`.
+
+The bundle now contains `manifest.json` and `checksums.sha256`; the installer
+verifies all payload files before inventory or writes. The updated bundle passed
+checksum validation and `--check` on the router. Deployment backup retention is
+now implemented as an explicit `--prune-backups` option. It keeps the newest
+three `*-installer-*` directories only; ordinary installer runs never delete
+backups, and sing-box/profile backups are outside its cleanup scope. GitHub
+Release automation is now present in `.github/workflows/release.yml`, with
+online/offline instructions in `RELEASE.md`. The first tagged Release still
+needs to be published and verified after the repository is pushed to GitHub.

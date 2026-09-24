@@ -255,3 +255,39 @@ Doctor remained healthy with valid config, process, `tun0`, connectivity,
 firewall checks, and `active_config_match: true`. The deployment script was
 changed to preserve an existing UCI watchdog configuration on later deploys,
 so a code update cannot silently disable or reorder the live watchdog.
+
+## 2026-09-23 — installer bundle check
+
+The self-extracting installer was assembled in a temporary router directory
+and executed with `--check`. It correctly detected the GL-MT3000/OpenWrt
+25.12.5, installed CLI/LuCI/watchdog/configuration groups, existing sing-box
+config, and active profile `Estoniya_1`. It exited in check-only mode without
+writing production files. The installer was adjusted to use `cp -p` and
+`chmod` because this OpenWrt image does not provide a standalone `install`
+command.
+
+The installer bundle was then extended with `manifest.json` and
+`checksums.sha256`. A rebuilt bundle passed checksum verification and
+`--check` on the router, again without changing production files.
+
+The installer now supports explicit `--prune-backups`; it removes only the
+oldest `*-installer-*` deployment directories after retaining the newest three.
+The updated bundle was rebuilt and passed checksum verification and `--check`
+on the router. No production files were changed by this check.
+
+The user then ran the bundle in interactive mode and selected `keep` for all
+four existing groups. The installer completed successfully, created no update
+backup because no group was changed, and reported that sing-box configuration
+was not changed.
+
+The next run selected `update` for `CLI` and `keep` for LuCI, watchdog, and
+configuration. It created:
+
+```text
+/etc/sing-box/backups/overfog-manager-deploy/20260923-022809-installer-25775
+```
+
+The CLI update completed successfully after the installer normalized CRLF shell
+files. `doctor --json` remained healthy: config valid, process/tun0/connectivity
+and firewall checks successful, `Estoniya_1` active, and
+`active_config_match: true`. Sing-box configuration was not changed.

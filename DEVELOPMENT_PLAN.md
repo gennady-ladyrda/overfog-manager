@@ -42,6 +42,18 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
 - [x] Test automatic failover and bounded backup retention on the router with
   a temporary six-failure curl simulator and cleanup after rollback.
 - [x] Run two healthy 60-second cycles with watchdog enabled under `procd`.
+- [x] Decide grouped installer choices: CLI, LuCI, watchdog, configuration.
+- [~] Implement router-side inventory and self-extracting online/offline
+  installer with grouped non-destructive choices; a real router-built bundle
+  passed `--check`, and the interactive all-`keep` path was verified; the
+  CLI update path was verified with backup and Doctor; the installer now
+  normalizes shell files. Release packaging and updates for the remaining
+  groups remain.
+- [x] Add deployment manifest/checksum verification.
+- [x] Add explicit `--prune-backups` retention for deployment backups, keeping
+  the newest three installer backups.
+- [x] Add GitHub Actions release automation for `.run` and `.sha256` artifacts.
+- [ ] Publish and verify the first tagged GitHub Release.
 
 ## Rules for updating this file
 

@@ -132,6 +132,39 @@ current behavior, verification, and continuation instructions. Deployment or
 router changes also update `DEPLOYMENT_LOG.md`. These files are part of the
 handoff contract for future sessions and must remain current.
 
+## Router-side installer
+
+Deployment is performed on the router itself. The primary distribution artifact
+is a self-extracting `overfog-manager-installer.run` bundle downloaded from a
+GitHub Release. The same file can be copied to the router and executed without
+network access when GitHub is unavailable. Online and offline installation use
+the same installer code and payload.
+
+The installer must perform inventory and display a change plan before any
+write. It must never silently overwrite an existing file or sing-box
+configuration. Existing manager files are handled in four independent groups:
+
+1. `CLI` — `/usr/bin/overfogctl` and shared manager libraries;
+2. `LuCI` — controller and view files;
+3. `watchdog` — watchdog init script and watchdog library/config integration;
+4. `configuration` — manager UCI configuration and related manager state.
+
+For each group the user chooses `keep`, `backup-and-update`, `skip`, or
+`abort`. A replacement creates a deployment backup first. The installer never
+replaces `/etc/sing-box/config.json`, profile files, or `active-profile` as a
+side effect of installing the manager. Sing-box setup is a separate explicit
+operation.
+
+Deployment backups are separate from sing-box recovery backups. The installer
+retains the latest three deployment backups and must not delete user profile or
+sing-box backups without a separate explicit cleanup choice.
+
+Release distribution uses GitHub Actions. A version tag (`v*`) triggers tests,
+POSIX shell syntax checks, self-extracting bundle creation, SHA-256 generation,
+and publication of the `.run` installer plus its checksum file. The release
+bundle is self-contained so offline installation uses exactly the same payload
+and installer code as online installation.
+
 ## Security and safety constraints
 
 - Never print or commit UUIDs, Reality public/private-related credentials,

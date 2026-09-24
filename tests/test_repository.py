@@ -80,6 +80,27 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertIn("cmd_watchdog_monitor_once", cli)
         self.assertIn("WATCHDOG_AUTOMATIC_BACKUP_DIR", cli)
 
+    def test_installer_is_grouped_and_does_not_install_singbox_config(self):
+        installer = (ROOT / "installer" / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("cli luci watchdog configuration", installer)
+        self.assertIn("backup-and-update", (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"))
+        self.assertNotIn("install_file \"$PAYLOAD_ROOT/etc/sing-box/config.json\"", installer)
+        self.assertIn("Installation choices completed", installer)
+        self.assertIn("--check", installer)
+        self.assertIn("sed 's/\\r$//'", installer)
+        self.assertIn("--prune-backups", installer)
+        self.assertIn("prune_deployment_backups", installer)
+
+    def test_installer_bundle_launcher_has_payload_marker(self):
+        launcher = (ROOT / "installer" / "launcher.sh").read_text(encoding="utf-8")
+        installer = (ROOT / "installer" / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("__OVERFOG_PAYLOAD_BELOW__", launcher)
+        self.assertIn("tar -xzf", launcher)
+        builder = (ROOT / "scripts" / "build-installer.sh").read_text(encoding="utf-8")
+        self.assertIn("overfog-manager-installer.run", builder)
+        self.assertIn("checksums.sha256", builder)
+        self.assertIn("sha256sum -c checksums.sha256", installer)
+
     def test_shell_syntax(self):
         shell = shutil.which("sh")
         if shell is None:

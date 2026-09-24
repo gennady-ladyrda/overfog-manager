@@ -1,0 +1,48 @@
+name: Build installer release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run repository tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Check shell syntax
+        run: |
+          sh -n overfogctl
+          sh -n lib/*.sh
+          sh -n installer/*.sh
+          sh -n scripts/build-installer.sh
+          sh -n etc/init.d/overfog-manager-watchdog
+
+      - name: Build installer bundle
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          chmod 0755 scripts/build-installer.sh
+          VERSION="$VERSION" scripts/build-installer.sh
+          sha256sum dist/overfog-manager-installer.run
+          cat dist/overfog-manager-installer.run.sha256
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/overfog-manager-installer.run \
+            dist/overfog-manager-installer.run.sha256 \
+            --generate-notes \
+            --title "Overfog Manager $GITHUB_REF_NAME"
