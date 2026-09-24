@@ -291,3 +291,8 @@ The CLI update completed successfully after the installer normalized CRLF shell
 files. `doctor --json` remained healthy: config valid, process/tun0/connectivity
 and firewall checks successful, `Estoniya_1` active, and
 `active_config_match: true`. Sing-box configuration was not changed.
+
+## 2026-09-24 — first GitHub release
+
+Release `v0.1.2` was published from the sanitized source tree. GitHub Actions
+successfully attached `overfog-manager-installer.run` and its `.sha256` file.

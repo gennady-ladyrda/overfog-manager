@@ -53,7 +53,7 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
 - [x] Add explicit `--prune-backups` retention for deployment backups, keeping
   the newest three installer backups.
 - [x] Add GitHub Actions release automation for `.run` and `.sha256` artifacts.
-- [ ] Publish and verify the first tagged GitHub Release.
+- [x] Publish and verify GitHub Release `v0.1.2`.
 
 ## Rules for updating this file
 

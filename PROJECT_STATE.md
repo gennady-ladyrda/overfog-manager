@@ -185,5 +185,5 @@ now implemented as an explicit `--prune-backups` option. It keeps the newest
 three `*-installer-*` directories only; ordinary installer runs never delete
 backups, and sing-box/profile backups are outside its cleanup scope. GitHub
 Release automation is now present in `.github/workflows/release.yml`, with
-online/offline instructions in `RELEASE.md`. The first tagged Release still
-needs to be published and verified after the repository is pushed to GitHub.
+online/offline instructions in `RELEASE.md`. Release `v0.1.2` is published and
+verified on GitHub with the installer and its SHA-256 checksum attached.
