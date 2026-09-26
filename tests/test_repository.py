@@ -157,6 +157,10 @@ class RepositoryFixturesTests(unittest.TestCase):
         result = subprocess.run([shell, "-n", str(ROOT / "overfogctl")], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_shell_integration_uses_an_isolated_operation_lock(self):
+        integration = (ROOT / "tests" / "shell" / "test_cli.sh").read_text(encoding="utf-8")
+        self.assertIn("OVERFOG_OPERATION_LOCK_DIR=\"$TMP_ROOT/operation.lock\"", integration)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,6 +28,7 @@ cp "$ROOT/tests/fixtures/config.base.sanitized.json" "$CONFIG"
 export OVERFOG_CONFIG="$CONFIG"
 export OVERFOG_PROFILE_DIR="$PROFILES"
 export OVERFOG_ACTIVE_FILE="$ACTIVE"
+export OVERFOG_OPERATION_LOCK_DIR="$TMP_ROOT/operation.lock"
 export PATH="$FAKE_BIN:$PATH"
 
 "$ROOT/overfogctl" profile-create finland FI >/dev/null
