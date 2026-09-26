@@ -296,3 +296,70 @@ and firewall checks successful, `Estoniya_1` active, and
 
 Release `v0.1.2` was published from the sanitized source tree. GitHub Actions
 successfully attached `overfog-manager-installer.run` and its `.sha256` file.
+
+## 2026-09-26 — provider-neutral watchdog order validation
+
+The updated CLI libraries, watchdog init script, and LuCI controller/view were
+syntax-checked in a temporary router directory, then deployed with a separate
+backup under `overfog-manager-deploy/20260926-watchdog-order`. The deploy did
+not modify sing-box configuration, profiles, or the active profile. uhttpd was
+reloaded and the enabled watchdog was restarted.
+
+The existing order was migrated from its legacy single UCI option to a UCI list.
+Moving `finland` up/down, removing and re-adding it, and a healthy one-shot
+watchdog check all succeeded. A temporary newly created profile was appended
+automatically, then removed along with its order entry. Final order and active
+profile remained unchanged; Doctor confirmed config, process, tun0,
+connectivity, firewall, and active-config matching were healthy.
+
+## 2026-09-27 — protected profile deletion deployment
+
+The updated CLI entry point, profile helper, and LuCI controller/view were
+syntax-checked on the router, deployed atomically, and the previous files were
+saved under `overfog-manager-deploy/20260927-profile-delete`. Only `uhttpd` was
+reloaded; sing-box, profiles, and the active configuration were not modified.
+The new `profile-delete` command and LuCI template entry are present. A final
+Doctor check remained healthy with `Singapur` active and
+`active_config_match: true`. Functional deletion of a non-active profile is
+still intentionally left for browser confirmation.
+
+## 2026-09-27 — LuCI POST/redirect/GET update
+
+The LuCI controller was updated to redirect every POST request to the overview
+GET URL after completion. This prevents a browser refresh from resubmitting an
+operation. The previous controller is retained under
+`overfog-manager-deploy/20260927-prg`. The deployed controller passed Lua
+syntax validation, uhttpd was reloaded, and Doctor remained healthy with
+`Singapur` active and `active_config_match: true`.
+
+## 2026-09-27 — operation-lock and LuCI progress overlay
+
+The CLI and LuCI view were updated with a shared mutation lock and a full-page
+progress overlay for every LuCI POST. The previous files are retained under
+`overfog-manager-deploy/20260927-operation-lock`. The new shell entry point
+passed `sh -n`; uhttpd was reloaded without restarting sing-box. The overlay
+was confirmed present in the deployed view, no stale operation lock remained,
+and Doctor remained fully healthy with `Singapur` active and
+`active_config_match: true`.
+
+## 2026-09-27 — LuCI operation-result correction
+
+The redirect controller originally reported every POST as completed even when
+the invoked CLI command returned a failure code. It now uses `luci.sys.call`
+and redirects with a safe success/failure result only; the overview reports a
+failure explicitly and continues to display the actual active profile. The
+controller was syntax-checked and deployed with its prior version saved under
+`overfog-manager-deploy/20260927-operation-result`. uhttpd was reloaded only;
+Doctor remained healthy with `Singapur` active and `active_config_match: true`.
+`overfogctl test Germaniya_2` succeeded without changing the active VPN.
+
+## 2026-09-27 — LuCI overlay form-submission correction
+
+The first overlay implementation disabled form inputs during the submit event,
+which caused the browser to omit hidden token/action/profile fields from the
+POST. Consequently, LuCI rejected the request before invoking the CLI. The
+overlay now blocks interaction visually and through its one-submit guard while
+leaving submitted fields enabled. The corrected view was deployed with the
+prior version saved under `overfog-manager-deploy/20260927-overlay-submit`;
+uhttpd was reloaded only. Doctor remained healthy with `Singapur` active and
+`active_config_match: true`.

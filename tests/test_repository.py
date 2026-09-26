@@ -56,7 +56,12 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertIn("overfogctl import", controller)
         self.assertIn("overfogctl switch", controller)
         self.assertIn("overfogctl rollback", controller)
+        self.assertIn("overfogctl profile-delete", controller)
         self.assertIn('meta.file ~= ""', controller)
+        self.assertIn('formvalue("token")', controller)
+        self.assertIn("http.redirect", controller)
+        self.assertIn("operation_success", controller)
+        self.assertIn("Operation did not complete", controller)
 
     def test_watchdog_configuration_is_disabled_by_default(self):
         config = (ROOT / "config" / "overfog-manager").read_text(encoding="utf-8")
@@ -64,13 +69,20 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertIn("option interval '60'", config)
         self.assertIn("option failure_threshold '3'", config)
         self.assertIn("option cooldown '600'", config)
-        self.assertIn("option profile_order 'Germaniya_2 Estoniya_1 finland'", config)
+        self.assertIn("list profile_order", config)
+        self.assertNotIn("Germaniya_2", config)
+        self.assertNotIn("Estoniya_1", config)
+        self.assertNotIn("finland", config)
 
     def test_watchdog_is_secret_safe_and_documented(self):
         watchdog = (ROOT / "lib" / "watchdog.sh").read_text(encoding="utf-8")
         self.assertIn("WATCHDOG_STATE_FILE", watchdog)
         self.assertIn("watchdog_state_valid", watchdog)
         self.assertNotIn("uuid", watchdog.lower())
+
+    def test_process_check_targets_expected_singbox_command(self):
+        checks = (ROOT / "lib" / "checks.sh").read_text(encoding="utf-8")
+        self.assertIn("pgrep -f '/usr/bin/sing-box run'", checks)
 
     def test_watchdog_service_is_disabled_by_configuration_not_code(self):
         service = (ROOT / "etc" / "init.d" / "overfog-manager-watchdog").read_text(encoding="utf-8")
@@ -79,6 +91,43 @@ class RepositoryFixturesTests(unittest.TestCase):
         cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
         self.assertIn("cmd_watchdog_monitor_once", cli)
         self.assertIn("WATCHDOG_AUTOMATIC_BACKUP_DIR", cli)
+
+    def test_watchdog_order_is_user_managed_and_profiles_are_auto_appended(self):
+        watchdog = (ROOT / "lib" / "watchdog.sh").read_text(encoding="utf-8")
+        cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
+        self.assertIn("watchdog_profile_order_add", watchdog)
+        self.assertIn("watchdog_profile_order_move", watchdog)
+        self.assertIn("watchdog_configure", watchdog)
+        self.assertIn("watchdog profile-move", cli)
+        self.assertIn("watchdog_profile_order_add \"$NAME\"", cli)
+
+    def test_luci_exposes_watchdog_order_controls(self):
+        controller = (ROOT / "luci-app-overfog-manager" / "luasrc" / "controller" / "overfog-manager.lua").read_text(encoding="utf-8")
+        view = (ROOT / "luci-app-overfog-manager" / "luasrc" / "view" / "overfog-manager" / "overview.htm").read_text(encoding="utf-8")
+        self.assertIn("watchdog profile-move", controller)
+        self.assertIn("watchdog profile-remove", controller)
+        self.assertIn("watchdog profile-add", controller)
+        self.assertIn("watchdog configure", controller)
+        self.assertIn("Automatic failover", view)
+        self.assertIn('name="token"', view)
+        self.assertIn('action" value="profile-delete"', view)
+        self.assertIn("overfog-operation-overlay", view)
+        self.assertIn("lockInterface", view)
+        self.assertIn("event.preventDefault()", view)
+        self.assertNotIn("disabled = true", view)
+
+    def test_profile_deletion_protects_active_profile_and_rollback(self):
+        cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
+        profiles = (ROOT / "lib" / "profiles.sh").read_text(encoding="utf-8")
+        self.assertIn("cmd_profile_delete", cli)
+        self.assertIn("Cannot delete the active profile", cli)
+        self.assertIn("--purge-backups", cli)
+        self.assertIn("profile_backup_references", profiles)
+
+    def test_mutating_cli_commands_use_the_shared_operation_lock(self):
+        cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
+        self.assertGreaterEqual(cli.count("acquire_operation_lock"), 7)
+        self.assertIn("Another profile, switch, rollback, or watchdog operation", cli)
 
     def test_installer_is_grouped_and_does_not_install_singbox_config(self):
         installer = (ROOT / "installer" / "install.sh").read_text(encoding="utf-8")

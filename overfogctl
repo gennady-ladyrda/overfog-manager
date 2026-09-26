@@ -143,6 +143,13 @@ cmd_profile_create() {
     [ ! -e "$TARGET" ] ||
         die "Profile already exists: $NAME"
 
+    acquire_operation_lock ||
+        die "Another profile, switch, rollback, or watchdog operation is already running"
+    cleanup_profile_create() {
+        release_operation_lock
+    }
+    trap cleanup_profile_create 0 1 2 15
+
     TMP="${TMPDIR:-/tmp}/overfog-profile.$$"
 
     jq -e \
@@ -178,8 +185,62 @@ cmd_profile_create() {
     mv "$TMP" "$TARGET"
     chmod 600 "$TARGET"
 
+    watchdog_profile_order_add "$NAME" ||
+        echo "WARNING: profile was created but could not be added to watchdog order" >&2
+
+    trap - 0 1 2 15
+    cleanup_profile_create
     echo "Profile created: $NAME"
     echo "File: $TARGET"
+}
+
+cmd_profile_delete() {
+    NAME="${1:-}"
+    PURGE_BACKUPS=0
+
+    [ -n "$NAME" ] || die "Usage: overfogctl profile-delete PROFILE [--purge-backups]"
+    valid_profile_name "$NAME" || die "Invalid profile name"
+    [ -f "$PROFILE_DIR/$NAME.json" ] || die "Profile not found: $NAME"
+    [ "$(active_profile)" != "$NAME" ] ||
+        die "Cannot delete the active profile; switch to another profile first"
+
+    if [ "${2:-}" = "--purge-backups" ]; then
+        PURGE_BACKUPS=1
+    elif [ -n "${2:-}" ]; then
+        die "Usage: overfogctl profile-delete PROFILE [--purge-backups]"
+    fi
+
+    REFERENCES="$(
+        profile_backup_references "$NAME" "$BACKUP_DIR" || true
+        [ "$WATCHDOG_AUTOMATIC_BACKUP_DIR" = "$BACKUP_DIR" ] ||
+            profile_backup_references "$NAME" "$WATCHDOG_AUTOMATIC_BACKUP_DIR" || true
+    )"
+    if [ -n "$REFERENCES" ] && [ "$PURGE_BACKUPS" -ne 1 ]; then
+        die "Profile is referenced by rollback backups; retry with --purge-backups to delete those snapshots too"
+    fi
+
+    acquire_operation_lock ||
+        die "Another switch, rollback, or watchdog operation is already running"
+    cleanup_profile_delete() {
+        release_operation_lock
+    }
+    trap cleanup_profile_delete 0 1 2 15
+
+    watchdog_profile_order_remove "$NAME" ||
+        die "Cannot remove profile from watchdog order"
+
+    if [ "$PURGE_BACKUPS" -eq 1 ] && [ -n "$REFERENCES" ]; then
+        delete_profile_backup_references "$NAME" "$BACKUP_DIR" ||
+            die "Cannot remove rollback backups for profile"
+        [ "$WATCHDOG_AUTOMATIC_BACKUP_DIR" = "$BACKUP_DIR" ] ||
+            delete_profile_backup_references "$NAME" "$WATCHDOG_AUTOMATIC_BACKUP_DIR" ||
+                die "Cannot remove automatic recovery backups for profile"
+    fi
+
+    rm -f "$PROFILE_DIR/$NAME.json" || die "Cannot delete profile: $NAME"
+    trap - 0 1 2 15
+    cleanup_profile_delete
+    echo "Profile deleted: $NAME"
 }
 
 cmd_test() {
@@ -375,6 +436,14 @@ cmd_import() {
     [ ! -e "$TARGET" ] ||
         die "Profile already exists: $NAME"
 
+    acquire_operation_lock ||
+        die "Another profile, switch, rollback, or watchdog operation is already running"
+    cleanup_import() {
+        rm -f "${TMP:-}"
+        release_operation_lock
+    }
+    trap cleanup_import 0 1 2 15
+
     TMP="${TMPDIR:-/tmp}/overfog-import-$$.json"
     import_happ_profile "$INPUT" "$NAME" "$COUNTRY" "$TMP" || {
         rm -f "$TMP"
@@ -390,6 +459,10 @@ cmd_import() {
         die "Cannot store imported profile"
     }
     chmod 600 "$TARGET"
+    watchdog_profile_order_add "$NAME" ||
+        echo "WARNING: profile was imported but could not be added to watchdog order" >&2
+    trap - 0 1 2 15
+    cleanup_import
     echo "Profile imported: $NAME"
     echo "File: $TARGET"
 }
@@ -513,12 +586,13 @@ Usage:
   overfogctl status
   overfogctl list [--json]
   overfogctl profile-create NAME [COUNTRY]
+  overfogctl profile-delete PROFILE [--purge-backups]
   overfogctl test PROFILE
   overfogctl switch PROFILE
   overfogctl rollback
   overfogctl doctor [--json]
   overfogctl import FILE [--country COUNTRY]
-  overfogctl watchdog {config|state|once|monitor}
+  overfogctl watchdog {config|configure|state|profiles|profile-add|profile-remove|profile-move|once|monitor}
 EOF2
 }
 
@@ -540,6 +614,75 @@ cmd_watchdog() {
             watchdog_state_valid || watchdog_state_init || die "Cannot initialize watchdog state"
             jq 'del(.cooldown)' "$WATCHDOG_STATE_FILE"
             ;;
+        configure)
+            acquire_operation_lock || die "Another profile, switch, rollback, or watchdog operation is already running"
+            trap release_operation_lock 0 1 2 15
+            watchdog_configure "${2:-}" "${3:-}" "${4:-}" "${5:-}" ||
+                die "Usage: overfogctl watchdog configure ENABLED INTERVAL FAILURE_THRESHOLD COOLDOWN"
+            if [ "${2:-}" = "1" ]; then
+                /etc/init.d/overfog-manager-watchdog enable >/dev/null 2>&1 || true
+                /etc/init.d/overfog-manager-watchdog start >/dev/null 2>&1 || true
+            else
+                /etc/init.d/overfog-manager-watchdog stop >/dev/null 2>&1 || true
+                /etc/init.d/overfog-manager-watchdog disable >/dev/null 2>&1 || true
+            fi
+            trap - 0 1 2 15
+            release_operation_lock
+            echo "Watchdog configuration updated"
+            ;;
+        profiles)
+            order="$(watchdog_profile_order)"
+            if [ "${2:-}" = "--json" ]; then
+                active="$(active_profile)"
+                jq -Rn --arg order "$order" --arg active "$active" \
+                    '($order | split(" ") | map(select(length > 0) | {name: ., active: (. == $active)}))'
+            else
+                index=1
+                found=0
+                for profile in $order; do
+                    marker=""
+                    [ "$profile" = "$(active_profile)" ] && marker="*"
+                    printf '%s %s %s\n' "$index" "$marker" "$profile"
+                    index=$((index + 1))
+                    found=1
+                done
+                [ "$found" -eq 1 ] || echo "No watchdog fallback profiles configured."
+            fi
+            ;;
+        profile-add)
+            acquire_operation_lock || die "Another profile, switch, rollback, or watchdog operation is already running"
+            trap release_operation_lock 0 1 2 15
+            PROFILE_NAME="${2:-}"
+            [ -n "$PROFILE_NAME" ] || die "Usage: overfogctl watchdog profile-add PROFILE"
+            [ -r "$PROFILE_DIR/$PROFILE_NAME.json" ] || die "Profile not found: $PROFILE_NAME"
+            watchdog_profile_order_add "$PROFILE_NAME" || die "Cannot update watchdog profile order"
+            trap - 0 1 2 15
+            release_operation_lock
+            echo "Watchdog profile added: $PROFILE_NAME"
+            ;;
+        profile-remove)
+            acquire_operation_lock || die "Another profile, switch, rollback, or watchdog operation is already running"
+            trap release_operation_lock 0 1 2 15
+            PROFILE_NAME="${2:-}"
+            [ -n "$PROFILE_NAME" ] || die "Usage: overfogctl watchdog profile-remove PROFILE"
+            watchdog_profile_order_remove "$PROFILE_NAME" || die "Cannot update watchdog profile order"
+            trap - 0 1 2 15
+            release_operation_lock
+            echo "Watchdog profile removed: $PROFILE_NAME"
+            ;;
+        profile-move)
+            acquire_operation_lock || die "Another profile, switch, rollback, or watchdog operation is already running"
+            trap release_operation_lock 0 1 2 15
+            PROFILE_NAME="${2:-}"
+            DIRECTION="${3:-}"
+            [ -n "$PROFILE_NAME" ] && [ -n "$DIRECTION" ] ||
+                die "Usage: overfogctl watchdog profile-move PROFILE {up|down}"
+            watchdog_profile_order_move "$PROFILE_NAME" "$DIRECTION" ||
+                die "Cannot update watchdog profile order"
+            trap - 0 1 2 15
+            release_operation_lock
+            echo "Watchdog profile moved: $PROFILE_NAME $DIRECTION"
+            ;;
         once)
             cmd_watchdog_monitor_once
             ;;
@@ -547,7 +690,7 @@ cmd_watchdog() {
             cmd_watchdog_monitor
             ;;
         *)
-            die "Usage: overfogctl watchdog {config|state|once|monitor}"
+            die "Usage: overfogctl watchdog {config|configure|state|profiles|profile-add|profile-remove|profile-move|once|monitor}"
         ;;
     esac
 }
@@ -637,6 +780,10 @@ case "$COMMAND" in
     profile-create)
         shift
         cmd_profile_create "$@"
+        ;;
+    profile-delete)
+        shift
+        cmd_profile_delete "$@"
         ;;
     help|-h|--help|"")
         usage

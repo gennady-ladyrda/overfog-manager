@@ -2,9 +2,10 @@
 
 LuCI integration for `overfog-manager`.
 
-The page executes the shared `overfogctl` commands. It provides diagnostics,
-profile test, HAPP/Xray upload/paste import, switch, and rollback forms. It contains
-no independent profile or transaction logic.
+The page executes the shared `overfogctl` commands. It provides a compact
+status summary, profile table with per-profile test/switch actions, HAPP/Xray
+file or paste import, failover-order management, diagnostics, and rollback.
+It contains no independent profile or transaction logic.
 
 The package expects the CLI and its shared libraries to be installed at:
 

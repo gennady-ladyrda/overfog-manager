@@ -6,7 +6,7 @@ check_singbox_config() {
 }
 
 check_singbox_process() {
-    pgrep -af sing-box >/dev/null 2>&1
+    pgrep -f '/usr/bin/sing-box run' >/dev/null 2>&1
 }
 
 check_tun_interface() {

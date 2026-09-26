@@ -39,3 +39,28 @@ validate_profile() {
         and (.outbound.tls.reality.short_id | type == "string")
     ' "$file" >/dev/null
 }
+
+profile_backup_references() {
+    profile_name="$1"
+    backup_dir="$2"
+    found=1
+
+    for active_file in "$backup_dir"/*.active-profile; do
+        [ -f "$active_file" ] || continue
+        saved_name="$(tr -d '\r\n' < "$active_file")"
+        [ "$saved_name" = "$profile_name" ] || continue
+        printf '%s\n' "${active_file%.active-profile}"
+        found=0
+    done
+
+    return "$found"
+}
+
+delete_profile_backup_references() {
+    profile_name="$1"
+    backup_dir="$2"
+
+    profile_backup_references "$profile_name" "$backup_dir" | while IFS= read -r base; do
+        rm -f "$base.config.json" "$base.active-profile" "$base.metadata.json" || exit 1
+    done
+}

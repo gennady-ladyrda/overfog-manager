@@ -1,65 +1,132 @@
 <%+header%>
+<% local token = form_token or "" %>
+
+<style type="text/css">
+  #overfog-operation-overlay { align-items: center; background: rgba(0, 0, 0, .45); color: #fff; display: none; inset: 0; justify-content: center; position: fixed; text-align: center; z-index: 10000; }
+  #overfog-operation-overlay.is-active { display: flex; }
+  #overfog-operation-overlay .overfog-operation-message { background: #333; border-radius: 4px; padding: 1.5em 2em; }
+  #overfog-operation-overlay .overfog-spinner { animation: overfog-spin 1s linear infinite; border: 3px solid rgba(255, 255, 255, .35); border-radius: 50%; border-top-color: #fff; display: inline-block; height: 1.5em; margin-right: .6em; vertical-align: middle; width: 1.5em; }
+  @keyframes overfog-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div id="overfog-operation-overlay" aria-live="assertive" aria-modal="true" role="alertdialog">
+  <div class="overfog-operation-message"><span class="overfog-spinner"></span><strong><%:Operation in progress%></strong><br /><%:Please wait. The interface is temporarily locked.%></div>
+</div>
 
 <h2><%:Overfog Manager%></h2>
-<p><%:Diagnostics and profile operations through the shared overfogctl core.%></p>
+<p><%:Manage profiles and inspect the current VPN state.%></p>
 
 <div class="cbi-map">
   <div class="cbi-section">
-    <h3><%:Doctor result%></h3>
-    <pre id="overfog-doctor"><%=luci.util.pcdata(doctor_json or "{}")%></pre>
-  </div>
-
-  <div class="cbi-section">
-    <h3><%:Profiles%></h3>
-    <pre id="overfog-profiles"><%=luci.util.pcdata(profiles_json or "[]")%></pre>
-  </div>
-
-  <div class="cbi-section">
-    <h3><%:Profile test%></h3>
-    <form method="post">
-      <input type="hidden" name="action" value="test" />
-      <input type="text" name="profile" placeholder="finland" />
-      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Test%>" />
-    </form>
-  </div>
-
-  <div class="cbi-section">
-    <h3><%:Import HAPP/Xray profile%></h3>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="import" />
-      <input type="file" name="happ_file" accept="application/json,.json" />
-      <p><%:or paste the HAPP/Xray JSON below%></p>
-      <textarea name="happ_json" rows="12" cols="80" placeholder="{ ... }"></textarea>
-      <input type="text" name="country" placeholder="FI" />
-      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Import%>" />
-    </form>
-  </div>
-
-  <div class="cbi-section">
-    <h3><%:Switch profile%></h3>
-    <form method="post">
-      <input type="hidden" name="action" value="switch" />
-      <input type="text" name="profile" placeholder="finland" />
-      <label><input type="checkbox" name="confirm" value="1" /> <%:I understand this restarts sing-box%></label>
-      <input class="cbi-button cbi-button-reset" type="submit" value="<%:Switch%>" />
-    </form>
-  </div>
-
-  <div class="cbi-section">
-    <h3><%:Rollback%></h3>
-    <form method="post">
-      <input type="hidden" name="action" value="rollback" />
-      <label><input type="checkbox" name="confirm" value="1" /> <%:I understand this restores the latest backup%></label>
-      <input class="cbi-button cbi-button-reset" type="submit" value="<%:Rollback%>" />
-    </form>
+    <h3><%:Current status%></h3>
+    <table class="table">
+      <tr><th><%:VPN configuration%></th><td><%=doctor.config_valid and "OK" or "ERROR"%></td><th><%:Active profile%></th><td><%=luci.util.pcdata(doctor.active_profile or "-")%></td></tr>
+      <tr><th><%:sing-box%></th><td><%=doctor.process_running and "Running" or "Stopped"%></td><th><%:tun0%></th><td><%=doctor.tun0 and "Up" or "Down"%></td></tr>
+      <tr><th><%:Internet%></th><td><%=doctor.connectivity and "Available" or "Unavailable"%></td><th><%:Exit IP%></th><td><%=luci.util.pcdata((doctor.exit_ip and doctor.exit_ip.value) or "-")%></td></tr>
+    </table>
   </div>
 
   <% if action_output and action_output ~= "" then %>
-  <div class="cbi-section">
-    <h3><%:Action result%></h3>
-    <pre><%=luci.util.pcdata(action_output)%></pre>
-  </div>
+  <div class="cbi-section"><h3><%:Last operation%></h3><pre><%=luci.util.pcdata(action_output)%></pre></div>
   <% end %>
+
+  <div class="cbi-section">
+    <h3><%:Profiles%></h3>
+    <% if profile_list and #profile_list > 0 then %>
+    <table class="table">
+      <tr><th><%:Name%></th><th><%:Country%></th><th><%:Server%></th><th><%:Port%></th><th><%:Actions%></th></tr>
+      <% for _, profile in ipairs(profile_list) do %>
+      <tr>
+        <td><% if profile.active then %><strong>* </strong><% end %><%=luci.util.pcdata(profile.name or "-")%></td>
+        <td><%=luci.util.pcdata(profile.country or "-")%></td>
+        <td><%=luci.util.pcdata(profile.server or "-")%></td>
+        <td><%=luci.util.pcdata(tostring(profile.port or "-"))%></td>
+        <td>
+          <form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="test" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(profile.name or "")%>" /><input class="cbi-button cbi-button-apply" type="submit" value="<%:Test%>" /></form>
+          <% if not profile.active then %>
+          <form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="switch" /><input type="hidden" name="confirm" value="1" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(profile.name or "")%>" /><input class="cbi-button cbi-button-reset" type="submit" value="<%:Switch%>" onclick="return confirm('<%:Switch profile and restart sing-box?%>');" /></form>
+          <form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="profile-delete" /><input type="hidden" name="confirm" value="1" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(profile.name or "")%>" /><input class="cbi-button cbi-button-remove" type="submit" value="<%:Delete%>" onclick="return confirm('<%:Delete this profile and any rollback backups that restore it? This cannot be undone.%>');" /></form>
+          <% end %>
+        </td>
+      </tr>
+      <% end %>
+    </table>
+    <% else %><p><%:No profiles found.%></p><% end %>
+  </div>
+
+  <div class="cbi-section"><details>
+    <summary><strong><%:Add profile%></strong></summary>
+    <p><%:Upload a HAPP/Xray JSON file or paste its contents. The profile is validated and added without activating it.%></p>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="import" />
+      <p><label><%:JSON file%> <input type="file" name="happ_file" accept="application/json,.json" /></label></p>
+      <p><%:Or paste JSON:%></p><textarea name="happ_json" rows="8" cols="80" placeholder="{ ... }"></textarea>
+      <p><label><%:Country (optional)%> <input type="text" name="country" placeholder="FI" /></label></p>
+      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Import profile%>" />
+    </form>
+  </details></div>
+
+  <div class="cbi-section"><details>
+    <summary><strong><%:Automatic failover%></strong></summary>
+    <p><%:New profiles are appended automatically. With one profile, health is checked but there is no fallback candidate.%></p>
+    <p><%:Watchdog:%> <strong><%=watchdog_config.enabled and "Enabled" or "Disabled"%></strong></p>
+    <% if watchdog_profiles and #watchdog_profiles > 0 then %>
+    <ol>
+      <% for index, item in ipairs(watchdog_profiles) do %>
+      <li><%=luci.util.pcdata(item.name or "")%>
+        <% if index > 1 then %><form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="watchdog-move" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(item.name or "")%>" /><input type="hidden" name="direction" value="up" /><input class="cbi-button" type="submit" value="↑" title="<%:Move up%>" /></form><% end %>
+        <% if index < #watchdog_profiles then %><form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="watchdog-move" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(item.name or "")%>" /><input type="hidden" name="direction" value="down" /><input class="cbi-button" type="submit" value="↓" title="<%:Move down%>" /></form><% end %>
+        <form method="post" style="display:inline"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="watchdog-remove" /><input type="hidden" name="profile" value="<%=luci.util.pcdata(item.name or "")%>" /><input class="cbi-button cbi-button-reset" type="submit" value="<%:Exclude%>" /></form>
+      </li>
+      <% end %>
+    </ol>
+    <% else %><p><%:No fallback profiles configured.%></p><% end %>
+    <% if available_watchdog_profiles and #available_watchdog_profiles > 0 then %>
+    <form method="post"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="watchdog-add" /><select name="profile"><% for _, item in ipairs(available_watchdog_profiles) do %><option value="<%=luci.util.pcdata(item.name or "")%>"><%=luci.util.pcdata(item.name or "")%></option><% end %></select> <input class="cbi-button cbi-button-apply" type="submit" value="<%:Add to failover%>" /></form>
+    <% end %>
+    <form method="post">
+      <input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="watchdog-configure" />
+      <p><label><%:Watchdog state%>
+        <select name="watchdog_enabled"><option value="0"<%=watchdog_config.enabled and "" or " selected"%>><%:Disabled%></option><option value="1"<%=watchdog_config.enabled and " selected" or ""%>><%:Enabled%></option></select>
+      </label></p>
+      <p><label><%:Interval (seconds)%> <input type="number" min="1" name="watchdog_interval" value="<%=tostring(watchdog_config.interval or 60)%>" /></label></p>
+      <p><label><%:Failures before switch%> <input type="number" min="1" name="watchdog_threshold" value="<%=tostring(watchdog_config.failure_threshold or 3)%>" /></label></p>
+      <p><label><%:Cooldown (seconds)%> <input type="number" min="1" name="watchdog_cooldown" value="<%=tostring(watchdog_config.cooldown or 600)%>" /></label></p>
+      <input class="cbi-button cbi-button-apply" type="submit" value="<%:Save failover settings%>" />
+    </form>
+  </details></div>
+
+  <div class="cbi-section"><details>
+    <summary><strong><%:Diagnostics%></strong></summary>
+    <pre><%=luci.util.pcdata(doctor_json or "{}")%></pre>
+  </details></div>
+
+  <div class="cbi-section"><details>
+    <summary><strong><%:Recovery%></strong></summary>
+    <p><%:Rollback restores the latest managed known-good configuration.%></p>
+    <form method="post"><input type="hidden" name="token" value="<%=luci.util.pcdata(token)%>" /><input type="hidden" name="action" value="rollback" /><input type="hidden" name="confirm" value="1" /><input class="cbi-button cbi-button-reset" type="submit" value="<%:Rollback%>" onclick="return confirm('<%:Restore the latest backup and restart sing-box?%>');" /></form>
+  </details></div>
 </div>
+
+<script type="text/javascript">
+(function() {
+  var submitted = false;
+  var overlay = document.getElementById("overfog-operation-overlay");
+  var forms = document.querySelectorAll(".cbi-map form[method='post']");
+
+  function lockInterface(event) {
+    if (submitted) {
+      event.preventDefault();
+      return;
+    }
+    submitted = true;
+    overlay.className += " is-active";
+  }
+
+  for (var formIndex = 0; formIndex < forms.length; formIndex++) {
+    forms[formIndex].addEventListener("submit", lockInterface, false);
+  }
+}());
+</script>
 
 <%+footer%>

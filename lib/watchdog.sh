@@ -53,8 +53,118 @@ watchdog_cooldown() {
     watchdog_value cooldown 600
 }
 
+watchdog_configure() {
+    enabled="$1"
+    interval="$2"
+    threshold="$3"
+    cooldown="$4"
+
+    case "$enabled" in 0|1) ;; *) return 1 ;; esac
+    watchdog_positive_integer "$interval" || return 1
+    watchdog_positive_integer "$threshold" || return 1
+    watchdog_positive_integer "$cooldown" || return 1
+    [ -n "${OVERFOG_WATCHDOG_CONFIG:-}" ] && return 1
+    command -v uci >/dev/null 2>&1 || return 1
+    uci -q set "overfog-manager.main.enabled=$enabled" || return 1
+    uci -q set "overfog-manager.main.interval=$interval" || return 1
+    uci -q set "overfog-manager.main.failure_threshold=$threshold" || return 1
+    uci -q set "overfog-manager.main.cooldown=$cooldown" || return 1
+    uci -q commit overfog-manager || return 1
+}
+
 watchdog_profile_order() {
     watchdog_value profile_order ""
+}
+
+watchdog_profile_order_set() {
+    order="$1"
+
+    for profile in $order; do
+        valid_profile_name "$profile" || return 1
+        [ -r "$PROFILE_DIR/$profile.json" ] || return 1
+    done
+
+    previous=""
+    for profile in $order; do
+        case " $previous " in
+            *" $profile "*) return 1 ;;
+        esac
+        previous="$previous $profile"
+    done
+
+    # Test fixtures use environment-backed configuration and must not mutate
+    # the host. Production changes are committed atomically through UCI.
+    [ -n "${OVERFOG_WATCHDOG_CONFIG:-}" ] && return 0
+    command -v uci >/dev/null 2>&1 || return 1
+    uci -q delete overfog-manager.main.profile_order || true
+    for profile in $order; do
+        uci -q add_list overfog-manager.main.profile_order="$profile" || return 1
+    done
+    uci -q commit overfog-manager || return 1
+}
+
+watchdog_profile_order_add() {
+    profile="$1"
+    valid_profile_name "$profile" || return 1
+    [ -r "$PROFILE_DIR/$profile.json" ] || return 1
+    order="$(watchdog_profile_order)"
+    for existing in $order; do
+        [ "$existing" = "$profile" ] && return 0
+    done
+    if [ -n "$order" ]; then
+        order="$order $profile"
+    else
+        order="$profile"
+    fi
+    watchdog_profile_order_set "$order"
+}
+
+watchdog_profile_order_remove() {
+    profile="$1"
+    order=""
+    for existing in $(watchdog_profile_order); do
+        [ "$existing" = "$profile" ] && continue
+        if [ -n "$order" ]; then order="$order $existing"; else order="$existing"; fi
+    done
+    watchdog_profile_order_set "$order"
+}
+
+watchdog_profile_order_move() {
+    profile="$1"
+    direction="$2"
+    set -- $(watchdog_profile_order)
+    count=$#
+    [ "$count" -gt 0 ] || return 1
+
+    position=0
+    index=1
+    for existing in "$@"; do
+        if [ "$existing" = "$profile" ]; then position=$index; break; fi
+        index=$((index + 1))
+    done
+    [ "$position" -gt 0 ] || return 1
+    case "$direction" in
+        up) [ "$position" -gt 1 ] || return 0; target=$((position - 1)) ;;
+        down) [ "$position" -lt "$count" ] || return 0; target=$((position + 1)) ;;
+        *) return 1 ;;
+    esac
+
+    result=""
+    index=1
+    inserted=0
+    for existing in "$@"; do
+        [ "$existing" = "$profile" ] && continue
+        if [ "$index" -eq "$target" ]; then
+            if [ -n "$result" ]; then result="$result $profile"; else result="$profile"; fi
+            inserted=1
+        fi
+        if [ -n "$result" ]; then result="$result $existing"; else result="$existing"; fi
+        index=$((index + 1))
+    done
+    [ "$inserted" -eq 1 ] || {
+        if [ -n "$result" ]; then result="$result $profile"; else result="$profile"; fi
+    }
+    watchdog_profile_order_set "$result"
 }
 
 watchdog_positive_integer() {
@@ -71,9 +181,9 @@ watchdog_validate_config() {
     watchdog_positive_integer "$(watchdog_cooldown)" || return 1
 
     order="$(watchdog_profile_order)"
-    [ -n "$order" ] || return 1
     for profile in $order; do
         valid_profile_name "$profile" || return 1
+        [ -r "$PROFILE_DIR/$profile.json" ] || return 1
     done
 }
 

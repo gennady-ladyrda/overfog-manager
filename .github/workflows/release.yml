@@ -24,8 +24,15 @@ jobs:
           sh -n overfogctl
           sh -n lib/*.sh
           sh -n installer/*.sh
+          sh -n scripts/*.sh
           sh -n scripts/build-installer.sh
           sh -n etc/init.d/overfog-manager-watchdog
+
+      - name: Run POSIX shell integration test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          tests/shell/test_cli.sh
 
       - name: Build installer bundle
         env:

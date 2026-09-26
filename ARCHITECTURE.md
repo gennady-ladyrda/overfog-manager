@@ -50,6 +50,10 @@ For local tests only, `OVERFOG_CONFIG`, `OVERFOG_PROFILE_DIR`,
 
 Profiles contain a name, country, and complete normalized `overfog` outbound.
 They are not printed in full and are stored with mode `600` on the router.
+An inactive profile can be deleted through `profile-delete`. If a rollback
+snapshot records that profile as active, deletion requires the explicit
+`--purge-backups` option so rollback is never silently degraded. LuCI's Delete
+action requires browser confirmation and uses that explicit option.
 
 `import FILE [--country COUNTRY]` derives the profile name from the source
 HAPP/Xray `remarks` field. Leading/trailing whitespace is removed, whitespace
@@ -60,10 +64,19 @@ existing profile. For example, `Германия №2` becomes `Germaniya_2`.
 `doctor --json` exposes the same read-only checks without secrets, allowing a
 future LuCI wrapper to consume the result without duplicating diagnostic logic.
 
-The LuCI slice renders `doctor --json` and `list --json` and delegates test,
-import, switch, and rollback actions to the shared CLI through the existing
-authenticated controller path. Switch and rollback remain confirmation-gated
-and require router-side validation before use.
+The LuCI slice renders a compact status summary and profile table from
+`doctor --json` and `list --json`. Test, import, switch, rollback, and watchdog
+order actions are delegated to the shared CLI through the authenticated
+controller path. Destructive actions use explicit confirmation dialogs and
+POST forms carry the LuCI session token. Raw diagnostics remain available only
+inside an expandable details section.
+Every state-changing LuCI form uses a POST/redirect/GET response flow, so a
+browser refresh cannot repeat a switch, import, delete, rollback, or watchdog
+configuration request.
+While a LuCI POST is in flight, a full-page progress overlay prevents any
+interaction without disabling submitted form fields before the browser sends
+them. The same shared server-side operation lock serializes all profile,
+switch, rollback, and watchdog mutations across browser tabs and CLI calls.
 
 ## Transaction rules
 
@@ -105,8 +118,22 @@ candidates enter a cooldown and must not be retried continuously.
 
 The watchdog remains on the current working profile until a failure or manual
 switch. It does not automatically fail back to a higher-priority profile after
-that profile recovers. Profile selection uses an explicit configured priority
-order; provider-specific defaults must not be invented.
+that profile recovers. The distributed configuration contains an empty
+fallback list and no provider-specific profile names. A newly created or
+imported profile is appended automatically to the end of the user's list.
+The order can be changed explicitly from LuCI. With one profile, health checks
+continue to run, but there is no fallback candidate and no switch is attempted.
+An empty list is valid and means that automatic failover has no candidates.
+Watchdog enablement, interval, failure threshold, and cooldown are also
+editable from the LuCI failover section and are persisted through `overfogctl`.
+
+The current order is user state, not application defaults. Existing order is
+preserved during manager updates unless the user explicitly changes it.
+
+The order-management implementation was router-validated on 2026-09-26. It
+migrates an existing single UCI option to a UCI list on the first order update,
+supports move/remove/re-add operations, and appends a newly created profile.
+These operations do not modify sing-box configuration or activate profiles.
 
 Only one monitor, switch, or rollback operation may run at a time. A lock is
 required. A failover attempt must use the same backup, atomic replacement,

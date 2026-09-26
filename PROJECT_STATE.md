@@ -9,19 +9,29 @@ router on 2026-09-22. A clean `switch → rollback` test completed successfully.
 The latest router read-only check reports `Estoniya_1` active and matching the
 active config.
 
-The confirmed watchdog priority order is `Germaniya_2 Estoniya_1 finland`.
-The legacy profile `🇩🇪_Германия_№2` is intentionally excluded.
+The distributed watchdog configuration is provider-neutral: its fallback list
+is empty, and no profile names are imposed on a new installation. New profiles
+are appended automatically; LuCI controls explicit reordering. With one
+profile, health is monitored but no failover candidate exists. The current
+router's existing order is user state and is not changed by this repository
+update.
 
 The current CLI commands are:
 
 - `status`
 - `list [--json]`
 - `profile-create NAME [COUNTRY]`
+- `profile-delete PROFILE [--purge-backups]`
 - `test PROFILE`
 - `switch PROFILE`
 - `rollback`
 - `doctor`
 - `import FILE [--country COUNTRY]`
+- `watchdog profiles [--json]`
+- `watchdog configure ENABLED INTERVAL FAILURE_THRESHOLD COOLDOWN`
+- `watchdog profile-add PROFILE`
+- `watchdog profile-remove PROFILE`
+- `watchdog profile-move PROFILE {up|down}`
 
 ## Implemented repository pieces
 
@@ -54,11 +64,10 @@ api.ipify and is not compared with the VLESS server address. Historical
 
 ## Verification status
 
-Local Python tests: 7 passed. POSIX shell execution tests are skipped on the
-current Windows environment because `sh` is unavailable. `jq`, `sing-box`,
-OpenWrt service commands and router `switch` have not been exercised. The
-read-only CLI and LuCI files were deployed with backups; the LuCI page itself
-was opened and verified in the browser.
+Local Python tests: 14 passed and 1 shell-syntax test was skipped because this
+Windows environment has no usable POSIX `sh`. GitHub Actions installs `jq` and
+runs the integration test. The updated OpenWrt order-management path was
+rechecked on the router on 2026-09-26.
 
 The supplied curl probe verifies external reachability. The api.ipify probe
 observes and validates the returned IPv4 format; it does not assert a fixed
@@ -66,14 +75,50 @@ value because the exit IP is dynamic.
 
 ## Remaining work, in order
 
-1. Run the POSIX shell integration harness in Linux/OpenWrt-like CI.
-2. Refresh LuCI and confirm the secret-safe profile list is visible; retrying
-   paste of the existing source should report `Source: paste` and the expected
-   duplicate-profile message.
-3. Re-import the HAPP/Xray source only if a new profile is desired; the current
-   `Germaniya_2` import and test are already verified.
-4. Keep the verified router state and use the handoff artifacts for future
-   maintenance. The CLI and LuCI transaction paths are verified.
+1. Run the updated release workflow and POSIX integration test in CI.
+2. Visually confirm the refreshed LuCI page's order controls in a browser.
+3. Keep the verified router state and use the handoff artifacts for future
+   maintenance. Git operations remain the repository owner's responsibility.
+
+The provider-neutral watchdog order update was deployed and router-validated
+on 2026-09-26. The controller was syntax-checked and uhttpd reloaded; a visual
+LuCI browser confirmation remains a follow-up. Git operations are intentionally
+left to the repository owner.
+
+The LuCI page was redesigned locally around a status summary and profile table.
+Import, failover order, diagnostics, and recovery are now separate expandable
+sections. Profile actions are attached to table rows, confirmation checkboxes
+were removed, and state-changing POST forms require the LuCI session token.
+The updated page has not yet been deployed to the router.
+
+The local LuCI and CLI changes now also provide deletion of an inactive profile.
+Deletion removes it from the watchdog order. If a managed rollback snapshot
+would restore that profile, the CLI requires explicit `--purge-backups`; the
+LuCI confirmation uses it so rollback cannot silently restore a config whose
+profile file no longer exists. The files were deployed and syntax-checked on
+the router on 2026-09-27; browser confirmation of an actual non-active-profile
+deletion remains outstanding.
+
+All LuCI POST operations now use POST/redirect/GET. This was deployed and
+syntax-checked on the router on 2026-09-27, so refreshing the overview after an
+operation does not ask the browser to resend form data.
+
+LuCI now displays a full-page progress overlay and disables all controls as
+soon as a POST is submitted. The shared CLI operation lock also serializes
+profile creation/import/deletion, switch/rollback, and watchdog mutations
+across CLI calls and browser tabs. This was deployed and runtime-checked on
+the router on 2026-09-27; browser visual confirmation remains outstanding.
+
+The LuCI POST/redirect/GET result handling now reflects the CLI exit code.
+It no longer labels a failed switch as successful. The correction was deployed
+on 2026-09-27; the active profile remained `Singapur`, and a non-destructive
+test of `Germaniya_2` passed.
+
+The first in-flight overlay implementation was corrected after it disabled
+hidden submitted fields, causing LuCI to reject operations before CLI execution.
+The deployed overlay now blocks interaction without disabling form data. The
+active profile remains `Singapur`; a browser retry of switching to `Germaniya_2`
+is the required follow-up.
 
 ## Decisions and constraints
 
@@ -103,29 +148,27 @@ to `Germaniya_2`, Doctor/runtime checks, rollback, and restoration of
 read-only check reports active profile `Estoniya_1` and
 `active_config_match` is `true`.
 
-## Next feature: automatic failover
+## Automatic failover status
 
-The agreed design is documented in `ARCHITECTURE.md`. It is not implemented
-yet. The planned watchdog will run as an OpenWrt `procd` service, use both
-`example.com` and `api.ipify.org` checks, require three consecutive failures,
-use explicit profile priority and cooldown, and remain on a recovered working
-profile until a manual switch or the next failure. Automatic failback is not
-planned.
+The agreed design is documented in `ARCHITECTURE.md`. The watchdog runs as an
+OpenWrt `procd` service, uses both `example.com` and `api.ipify.org` checks,
+requires three consecutive failures, uses a user-managed fallback order and
+cooldown, and remains on a recovered working profile until a manual switch or
+the next failure. Automatic failback is not planned.
 
 Automatic switching will use the existing transactional CLI path and a
 separate bounded recovery area under `/etc/sing-box/backups/automatic/`.
 Successful transitions retain only the single previous known-good automatic
 backup; manual and historical backups are not removed.
 
-The first implementation slice is now present: disabled-by-default sample UCI
-configuration at `config/overfog-manager`, shared `lib/watchdog.sh` helpers,
-and secret-safe `overfogctl watchdog config/state` diagnostics. The local
-monitor loop, operation lock, automatic candidate switching, cooldown, bounded
-automatic backup pruning, and `procd` service have now been implemented but
-are deployed in the disabled state. Router shell syntax and config/state
-diagnostics passed; the controlled monitor-once failover path is router-
-validated. The watchdog is now enabled through UCI and its `procd` process has
-passed two 60-second healthy cycles without switching.
+The implementation includes disabled-by-default UCI configuration at
+`config/overfog-manager`, shared `lib/watchdog.sh` helpers, secret-safe
+diagnostics, the monitor loop, operation lock, automatic candidate switching,
+cooldown, bounded automatic backup pruning, and the `procd` service. The
+distributed fallback list is now empty and provider-neutral. Profile creation
+and import append new profiles automatically; CLI and LuCI expose explicit
+reordering and removal. Router validation of this latest order-management
+change remains outstanding.
 
 A one-shot watchdog run was validated on the router with temporary state and
 the confirmed profile order. It reported `Watchdog healthy: Germaniya_2` and

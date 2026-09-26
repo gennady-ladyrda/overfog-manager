@@ -1,8 +1,9 @@
 config manager 'main'
-	# Disabled until the watchdog has been deployed and tested explicitly.
+	# Disabled until the user enables automatic failover explicitly.
 	option enabled '0'
 	option interval '60'
 	option failure_threshold '3'
 	option cooldown '600'
-	# Space-separated explicit priority order.
-	option profile_order 'Germaniya_2 Estoniya_1 finland'
+	# Profiles are appended here automatically when created or imported.
+	# The order can be changed explicitly from LuCI.
+	list profile_order

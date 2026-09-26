@@ -35,8 +35,17 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
   backup code exist locally but are not yet router-validated.
 - [x] Add configurable profile priority, failure threshold, probe interval,
   cooldown, and secret-free watchdog state/diagnostics.
-- [x] Configure the confirmed router priority order:
-  `Germaniya_2 Estoniya_1 finland`.
+- [x] Make the distributed watchdog fallback list empty and provider-neutral;
+  append newly created/imported profiles automatically.
+- [x] Add explicit watchdog profile-order controls to the CLI and LuCI,
+  including one-profile/no-fallback behavior.
+- [x] Simplify LuCI into a status summary, profile table, compact import flow,
+  expandable failover/diagnostics/recovery sections, and token-protected POST
+  actions.
+- [~] Add protected inactive-profile deletion to the shared CLI and LuCI;
+  local tests pass, but router deployment and browser validation remain.
+- [~] Add LuCI in-flight operation overlay and shared mutation locking; code is
+  deployed and runtime-checked, but browser visual confirmation remains.
 - [x] Run a one-shot healthy watchdog check on the router using temporary
   state; no switch was triggered.
 - [x] Test automatic failover and bounded backup retention on the router with
@@ -54,6 +63,9 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
   the newest three installer backups.
 - [x] Add GitHub Actions release automation for `.run` and `.sha256` artifacts.
 - [x] Publish and verify GitHub Release `v0.1.2`.
+- [x] Router-validate the provider-neutral watchdog order management update;
+  verified migration of the existing order, move, remove/re-add, automatic
+  append on profile creation, and no-change healthy one-shot monitoring.
 
 ## Rules for updating this file
 

@@ -4,23 +4,38 @@ set -eu
 
 PREFIX=${PREFIX:-/usr/bin}
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ALLOW_OVERWRITE=${OVERFOG_ALLOW_OVERWRITE:-0}
 
-install -d "$PREFIX"
-install -d "$PREFIX/overfog-manager-lib"
-install -m 0755 "$SCRIPT_DIR/overfogctl" "$PREFIX/overfogctl"
-install -m 0644 "$SCRIPT_DIR/lib/paths.sh" "$PREFIX/overfog-manager-lib/paths.sh"
-install -m 0644 "$SCRIPT_DIR/lib/profiles.sh" "$PREFIX/overfog-manager-lib/profiles.sh"
-install -m 0644 "$SCRIPT_DIR/lib/config.sh" "$PREFIX/overfog-manager-lib/config.sh"
-install -m 0644 "$SCRIPT_DIR/lib/transaction.sh" "$PREFIX/overfog-manager-lib/transaction.sh"
-install -m 0644 "$SCRIPT_DIR/lib/checks.sh" "$PREFIX/overfog-manager-lib/checks.sh"
-install -m 0644 "$SCRIPT_DIR/lib/service.sh" "$PREFIX/overfog-manager-lib/service.sh"
-install -m 0644 "$SCRIPT_DIR/lib/import.sh" "$PREFIX/overfog-manager-lib/import.sh"
-install -m 0644 "$SCRIPT_DIR/lib/watchdog.sh" "$PREFIX/overfog-manager-lib/watchdog.sh"
+die() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+copy_file() {
+    source="$1"
+    destination="$2"
+    mode="$3"
+    [ ! -e "$destination" ] || [ "$ALLOW_OVERWRITE" = "1" ] ||
+        die "Refusing to overwrite existing file: $destination (set OVERFOG_ALLOW_OVERWRITE=1 explicitly)"
+    mkdir -p "$(dirname -- "$destination")"
+    sed 's/\r$//' "$source" > "$destination"
+    chmod "$mode" "$destination"
+}
+
+mkdir -p "$PREFIX" "$PREFIX/overfog-manager-lib"
+copy_file "$SCRIPT_DIR/overfogctl" "$PREFIX/overfogctl" 0755
+for file in "$SCRIPT_DIR"/lib/*.sh; do
+    copy_file "$file" "$PREFIX/overfog-manager-lib/$(basename "$file")" 0644
+done
 if [ -d "$SCRIPT_DIR/config" ]; then
-    install -d /etc/config
-    install -m 0644 "$SCRIPT_DIR/config/overfog-manager" /etc/config/overfog-manager
+    mkdir -p /etc/config
+    if [ -e /etc/config/overfog-manager ] && [ "$ALLOW_OVERWRITE" != "1" ]; then
+        echo "Preserving existing configuration: /etc/config/overfog-manager"
+    else
+        cp -p "$SCRIPT_DIR/config/overfog-manager" /etc/config/overfog-manager
+    fi
 fi
 if [ -f "$SCRIPT_DIR/etc/init.d/overfog-manager-watchdog" ]; then
-    install -m 0755 "$SCRIPT_DIR/etc/init.d/overfog-manager-watchdog" /etc/init.d/overfog-manager-watchdog
+    copy_file "$SCRIPT_DIR/etc/init.d/overfog-manager-watchdog" /etc/init.d/overfog-manager-watchdog 0755
 fi
 echo "Installed overfogctl to $PREFIX/overfogctl"
