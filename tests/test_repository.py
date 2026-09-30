@@ -21,6 +21,30 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertEqual(len(overfog), 1)
         self.assertEqual(overfog[0]["type"], "vless")
 
+    def test_base_config_preserves_canonical_split_routing(self):
+        config = self.read_json("config.base.sanitized.json")
+        route = config["route"]
+        rules = route["rules"]
+
+        self.assertEqual(rules[0]["action"], "sniff")
+        self.assertEqual(
+            rules[1],
+            {"port": 53, "network": ["tcp", "udp"], "outbound": "direct"},
+        )
+        self.assertEqual(rules[2]["domain_suffix"], [".ru", ".su", ".by"])
+        self.assertEqual(rules[3]["rule_set"], ["geosite-category-ru"])
+        self.assertEqual(rules[4]["rule_set"], ["geoip-ru"])
+        self.assertFalse(any(rule.get("protocol") == "dns" for rule in rules))
+        self.assertFalse(any("2ip.ru" in rule.get("domain_suffix", []) for rule in rules))
+        self.assertEqual(route["final"], "overfog")
+        self.assertTrue(route["auto_detect_interface"])
+
+        direct = next(item for item in config["outbounds"] if item.get("tag") == "direct")
+        self.assertNotIn("bind_interface", direct)
+        tun = next(item for item in config["inbounds"] if item.get("type") == "tun")
+        self.assertEqual(tun["stack"], "gvisor")
+        self.assertEqual(config["log"]["level"], "info")
+
     def test_profile_shape_is_sanitized_and_complete(self):
         profile = self.read_json("profile.finland.sanitized.json")
         outbound = profile["outbound"]
@@ -62,6 +86,12 @@ class RepositoryFixturesTests(unittest.TestCase):
         self.assertIn("http.redirect", controller)
         self.assertIn("operation_success", controller)
         self.assertIn("Operation did not complete", controller)
+
+    def test_candidate_generation_is_shared_by_test_and_switch(self):
+        cli = (ROOT / "overfogctl").read_text(encoding="utf-8")
+        config = (ROOT / "lib" / "config.sh").read_text(encoding="utf-8")
+        self.assertIn('generate_candidate "$CONFIG" "$PROFILE" "$TMP"', cli)
+        self.assertIn("canonicalize_static_routing", config)
 
     def test_watchdog_configuration_is_disabled_by_default(self):
         config = (ROOT / "config" / "overfog-manager").read_text(encoding="utf-8")

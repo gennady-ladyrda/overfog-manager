@@ -30,6 +30,14 @@ confirmed router command is `/etc/init.d/sing-box restart`.
 `overfogctl` and a future LuCI wrapper must call the same functions from
 `lib/`. LuCI must not contain an independent switching implementation.
 
+The shared candidate generator preserves the configuration-wide split-routing
+policy whenever it replaces a profile outbound. Its route order begins with
+sniffing, followed immediately by TCP/UDP port 53 to `direct`, then the
+`.ru`/`.su`/`.by` direct rule and Russian geosite and geoip rule-set direct
+rules. Other traffic reaches `route.final = overfog` unless a later explicit
+bypass applies. The direct outbound is never bound to a physical uplink and
+`route.auto_detect_interface` stays enabled.
+
 ## State and files
 
 Production defaults remain:

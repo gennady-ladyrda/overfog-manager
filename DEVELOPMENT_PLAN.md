@@ -66,6 +66,9 @@ implemented or awaiting external confirmation, `[ ]` not implemented.
 - [x] Router-validate the provider-neutral watchdog order management update;
   verified migration of the existing order, move, remove/re-add, automatic
   append on profile creation, and no-change healthy one-shot monitoring.
+- [x] Normalize the shared candidate route policy: TCP/UDP port 53 uses
+  `direct` immediately after sniffing; obsolete DNS-protocol and temporary
+  `2ip.ru` rules are removed; direct is not pinned to a physical uplink.
 
 ## Rules for updating this file
 

@@ -1,5 +1,17 @@
 {
-  "inbounds": [],
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun0",
+      "interface_name": "tun0",
+      "stack": "gvisor",
+      "auto_route": true,
+      "strict_route": true
+    }
+  ],
   "outbounds": [
     {
       "type": "direct",
@@ -28,6 +40,63 @@
     }
   ],
   "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "action": "sniff",
+        "sniffer": [
+          "http",
+          "tls",
+          "quic",
+          "bittorrent"
+        ],
+        "timeout": "1s"
+      },
+      {
+        "port": 53,
+        "network": [
+          "tcp",
+          "udp"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".by"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geosite-category-ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geoip-ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "17.0.0.0/8"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "protocol": "bittorrent",
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "192.168.8.0/24"
+        ],
+        "outbound": "direct"
+      }
+    ],
     "final": "overfog"
   }
 }

@@ -25,6 +25,15 @@ work, override them with `OVERFOG_CONFIG`, `OVERFOG_PROFILE_DIR`,
 use `OVERFOG_DIRECT_PROBE_RU` and `OVERFOG_DIRECT_PROBE_BY`.
 No provider credentials belong in this repository.
 
+## Split routing
+
+The shared candidate generator keeps the verified TUN routing policy intact:
+TCP and UDP DNS traffic on port 53 is sent directly; `.ru`, `.su`, and `.by`
+domains and the Russian geosite/geoip rule sets are sent directly; other
+traffic uses Overfog unless a later explicit bypass rule applies. The direct
+outbound is not pinned to a physical uplink; `route.auto_detect_interface`
+remains enabled.
+
 The release installer is the canonical deployment path because it inventories
 existing files, asks per-group before updating, and creates recoverable
 deployment backups. The older `scripts/install.sh`, `scripts/deploy.sh`, and

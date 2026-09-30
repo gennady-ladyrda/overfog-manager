@@ -54,6 +54,15 @@ atomically, runs `/etc/init.d/sing-box restart`, checks process/tun/curl,
 and restores the previous state on failure. Optional direct probes use
 `OVERFOG_DIRECT_PROBE_RU` and `OVERFOG_DIRECT_PROBE_BY`.
 
+Candidate generation is shared by `test` and `switch`, which are also the
+operations delegated by LuCI. It now normalizes the static split-routing policy
+on every candidate: sniff, TCP/UDP port 53 to `direct`, `.ru`/`.su`/`.by` to
+`direct`, Russian geosite and geoip rule sets to `direct`, then existing later
+bypass rules and `route.final = overfog`. It removes the obsolete
+`protocol: dns` rule, the temporary exact `2ip.ru` diagnostic rule, and any
+physical-interface binding on the `direct` outbound. `route.auto_detect_interface`
+remains enabled; the TUN configuration is retained unchanged.
+
 `rollback` selects the latest managed switch backup, saves the current state
 as a separate pre-rollback backup, restores atomically, restarts, and verifies
 runtime. `doctor` is read-only and reports configuration, process, tun0, log,
