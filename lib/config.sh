@@ -6,8 +6,8 @@ count_overfog() {
 }
 
 canonicalize_static_routing() {
-    input="$1"
-    output="$2"
+    canonicalize_input="$1"
+    canonicalize_output="$2"
 
     # Profiles control only the overfog outbound. The TUN and split-routing
     # policy remains configuration-wide, so normalize it in the one candidate
@@ -54,7 +54,7 @@ canonicalize_static_routing() {
                 | .route.rules = $normalized_rules
               end
         end
-    ' "$input" > "$output"
+    ' "$canonicalize_input" > "$canonicalize_output"
 }
 
 generate_candidate() {
