@@ -46,11 +46,11 @@ canonicalize_static_routing() {
                 (reduce $rules[] as $rule
                   ([];
                    . + [$rule]
-                   + (if $rule.action? == "sniff" then [{
+                     + (if $rule.action? == "sniff" then [{
                        port: 53,
                        network: ["tcp", "udp"],
                        outbound: "direct"
-                     }] else [] end)) as $normalized_rules
+                     }] else [] end))) as $normalized_rules
                 | .route.rules = $normalized_rules
               end
         end

@@ -3,6 +3,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -92,6 +93,29 @@ class RepositoryFixturesTests(unittest.TestCase):
         config = (ROOT / "lib" / "config.sh").read_text(encoding="utf-8")
         self.assertIn('generate_candidate "$CONFIG" "$PROFILE" "$TMP"', cli)
         self.assertIn("canonicalize_static_routing", config)
+
+    @unittest.skipUnless(shutil.which("sh") and shutil.which("jq"), "POSIX sh and jq are required")
+    def test_candidate_generation_jq_filter_compiles_and_runs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = pathlib.Path(temp_dir) / "candidate.json"
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-c",
+                    '. "$1/lib/config.sh"; generate_candidate "$2" "$3" "$4"',
+                    "sh",
+                    str(ROOT),
+                    str(FIXTURES / "config.base.sanitized.json"),
+                    str(FIXTURES / "profile.finland.sanitized.json"),
+                    str(output),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            candidate = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(candidate["route"]["rules"][0]["action"], "sniff")
+            self.assertEqual(candidate["route"]["rules"][1]["port"], 53)
 
     def test_watchdog_configuration_is_disabled_by_default(self):
         config = (ROOT / "config" / "overfog-manager").read_text(encoding="utf-8")

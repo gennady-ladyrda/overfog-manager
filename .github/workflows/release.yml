@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Run repository tests
         run: python3 -m unittest discover -s tests -v
 
@@ -29,10 +34,7 @@ jobs:
           sh -n etc/init.d/overfog-manager-watchdog
 
       - name: Run POSIX shell integration test
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          sh tests/shell/test_cli.sh
+        run: sh tests/shell/test_cli.sh
 
       - name: Build installer bundle
         env:
